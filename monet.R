@@ -29,9 +29,39 @@ string_api_url = "https://string-db.org/api"
 output_format = "tsv"
 
 limitsNodes = 10
+
 ################################################################################
 ###                                Functions                                 ###
 ################################################################################
+
+idMappingUniprot <- function(from, to, query, format='tab'){
+  r = GET("https://www.uniprot.org/uploadlists/", 
+          query = list("from" = from, "to" = to ,'format' = 'tab', 'query'= query))
+  return(readr:::read_tsv(r$content))
+}
+
+################################################################################
+###                                   JS                                     ###
+################################################################################
+
+jsCode <- '
+  shinyjs.Visu3D = function(params) {
+    // Create NGL Stage object
+    const viewportDiv = document.getElementById("viewport");
+    viewportDiv.innerHTML = "";
+    var stage = new NGL.Stage( "viewport" );
+    str1 = "rcsb://" ;
+
+    // Handle window resizing
+    window.addEventListener( "resize", function( event ){
+        stage.handleResize();
+    }, false );
+    
+    // Load PDB
+    stage.loadFile( str1.concat("", params) , { defaultRepresentation: true } );
+
+  }
+'
 
 ################################################################################
 ###                                   UI                                     ###
@@ -48,6 +78,12 @@ ui <- dashboardPage(
     )
   ),
   dashboardBody(
+    tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
+    tags$head(tags$style(type = "text/css", "
+               canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
+               ")),
+    useShinyjs(),
+    extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
               h1("Import data"), 
@@ -55,7 +91,7 @@ ui <- dashboardPage(
               selectizeInput("Species", "Species", choices = NULL, 
                              selected = NULL, multiple = FALSE,
                              options = list(
-                               placeholder = 'Search a gene',
+                               placeholder = 'Search a species',
                                maxOptions = 100,
                                onInitialize = I('function() { this.setValue(""); }')
                              )),
@@ -101,6 +137,12 @@ ui <- dashboardPage(
                              htmlOutput("selected_var_gene"), 
                              htmlOutput("selected_var_description"),
                              htmlOutput("selected_var_species"),
+                             div(id= "PDBDIV", 
+                                 htmlOutput("PDB_title"),
+                                 selectizeInput("PDBSelector_ID", "PDB ID", choices = NULL, 
+                                                selected = NULL, multiple = FALSE),
+                                 div(id="viewport",style="width:100%; height:400px;" ),
+                             ),
                              h4("Functionnal annotation"),
                              htmlOutput("FA_component_title"),
                              DTOutput('FA_component'),
@@ -122,7 +164,7 @@ ui <- dashboardPage(
                              DTOutput('FA_SMART'),
                              htmlOutput("FA_Pfam_title"),
                              DTOutput('FA_Pfam')
-              )))
+                )))
       ),
       tabItem("enrichissement",
               h1("Enrichissement"), 
@@ -331,9 +373,9 @@ server <- function(input, output, session) {
   observeEvent(input$colo, {
     if(!is.null(STRING$dataEnrichissement)){
       
-        updateSelectInput(session, "coloL2",
-                          choices = STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description) , 
-        )
+      updateSelectInput(session, "coloL2",
+                        choices = STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description) , 
+      )
     }
   })
   
@@ -347,7 +389,7 @@ server <- function(input, output, session) {
       STRING$nodes$color = "orange"
     }
   })
-
+  
   output$PI = renderDT(
     STRING$dataInfo, options = list(lengthChange = FALSE)
   )
@@ -417,16 +459,80 @@ server <- function(input, output, session) {
       request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
       request_url = paste0(request_url, parametersEnrichment, collapse = "")
       STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
+      
+      STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
+      cat(STRING$ID)
+      STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
+      STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+      if(!is.na(STRING$UniprotID)){
+        STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
+        final = NULL
+        for(i in STRING$PDB[,2]){
+          inter = read.csv(paste0("http://www.rcsb.org/pdb/rest/customReport.csv?pdbids=",i,"&reportName=StructureSummary&service=wsfile&format=csv"))
+          if(nrow(inter) != 0){
+            final = c(final, i)
+          }
+        }
+        STRING$PDB = final
+      } else {
+        STRING$PDB = NULL
+        updateSelectInput(session, "PDBSelector_ID",
+                          choices = NULL)
+      }
     } else {
+      cat("toto")
       STRING$annotation = NULL
+      STRING$PDB = NULL
+      shinyjs::hide(id = "PDBDIV")
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = "")
     }
     
   })
   
+  observeEvent(STRING$PDB, {
+    if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = setNames(as.character(STRING$PDB),
+                                           as.character(STRING$PDB)))
+      shinyjs::show(id = "PDBDIV")
+    } else {
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = NULL)
+      shinyjs::hide(id = "PDBDIV")
+    }
+  })
+  
+  # PDB
+  
+  observeEvent(input$PDBSelector_ID, {
+    if(!is.null(input$PDBSelector_ID) && input$PDBSelector_ID != ""){
+      js$Visu3D(input$PDBSelector_ID)
+    } 
+    
+  })
+  
+  output$PDB_title <- renderText({ 
+    if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
+      HTML('<b><u>PDB</u></b>') 
+    } else {
+      NULL
+    }
+  })
+  
+  # output$PDB_zone <- renderText({ 
+  #   if(!is.null(STRING$PDB) && nrow(STRING$PDB) != 0){
+  #     HTML('<div id="viewport" style="width:100%; height:400px;"></div>') 
+  #   } else {
+  #     NULL
+  #   }
+  # })
+  
+  
   # Go terms : Component
   output$FA_component_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
-        HTML("<b><u>Cellular component</u></b>") 
+      HTML("<b><u>Cellular component</u></b>") 
     } else {
       NULL
     }
@@ -451,7 +557,7 @@ server <- function(input, output, session) {
   # Go terms : Function
   output$FA_Function_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
-        HTML("<b><u>Molecular Function</u></b>") 
+      HTML("<b><u>Molecular Function</u></b>") 
     } else {
       NULL
     }
@@ -476,7 +582,7 @@ server <- function(input, output, session) {
   # Go terms : Process
   output$FA_Process_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
-        HTML("<b><u>Biological process</u></b>") 
+      HTML("<b><u>Biological process</u></b>") 
     } else {
       NULL
     }
@@ -497,12 +603,12 @@ server <- function(input, output, session) {
   }, selection = 'none', escape = FALSE,
   options = list(pageLength = 5, scrollX = TRUE)
   ) 
-
+  
   
   # Pfam
   output$FA_Pfam_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0){
-        HTML("<b><u>Pfam</u></b>") 
+      HTML("<b><u>Pfam</u></b>") 
     } else {
       NULL
     }
@@ -527,7 +633,7 @@ server <- function(input, output, session) {
   # SMART
   output$FA_SMART_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
-        HTML("<b><u>SMART</u></b>") 
+      HTML("<b><u>SMART</u></b>") 
     } else {
       NULL
     }
@@ -552,7 +658,7 @@ server <- function(input, output, session) {
   # Reactome
   output$FA_PMID_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
-        HTML("<b><u>Reactome</u></b>") 
+      HTML("<b><u>Reactome</u></b>") 
     } else {
       NULL
     }
@@ -577,7 +683,7 @@ server <- function(input, output, session) {
   # PMID
   output$FA_RCTM_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
-        HTML("<b><u>Pubmed</u></b>") 
+      HTML("<b><u>Pubmed</u></b>") 
     } else {
       NULL
     }
@@ -602,7 +708,7 @@ server <- function(input, output, session) {
   # KEGG
   output$FA_KEGG_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
-        HTML("<b><u>KEGG</u></b>") 
+      HTML("<b><u>KEGG</u></b>") 
     } else {
       NULL
     }
@@ -627,7 +733,7 @@ server <- function(input, output, session) {
   # InterPro
   output$FA_InterPro_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
-        HTML("<b><u>InterPro</u></b>") 
+      HTML("<b><u>InterPro</u></b>") 
     } else {
       NULL
     }
@@ -652,7 +758,7 @@ server <- function(input, output, session) {
   # Keyword
   output$FA_Keyword_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
-        HTML("<b><u>UniProt</u></b>") 
+      HTML("<b><u>UniProt</u></b>") 
     } else {
       NULL
     }
@@ -722,7 +828,7 @@ server <- function(input, output, session) {
     selection = 'none', escape = FALSE,
     options = list(scrollX = TRUE)
   )
-
+  
   output$INTERPRO = DT::renderDataTable({
     if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
       STRING$dataEnrichissement %>% filter(category == "InterPro") %>% 
