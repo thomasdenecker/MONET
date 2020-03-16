@@ -18,6 +18,7 @@ library(shinyjs)
 library(shinyalert)
 library(shinydashboard)
 library(shinyWidgets)
+library(shinycssloaders)
 library(DT)
 require(visNetwork)
 
@@ -86,24 +87,10 @@ ui <- dashboardPage(
     extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
-              h1("Import data"), 
-              textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
-              selectizeInput("Species", "Species", choices = NULL, 
-                             selected = NULL, multiple = FALSE,
-                             options = list(
-                               placeholder = 'Search a species',
-                               maxOptions = 100,
-                               onInitialize = I('function() { this.setValue(""); }')
-                             )),
-              actionButton("Search", "Search"),
-              tags$br(),
-              tags$br(),
-              fluidRow(
-                valueBoxOutput("sizeQuery", width = 3),
-                valueBoxOutput("unmatchedProtein", width = 3),
-                valueBoxOutput("nbNodesFinal", width = 3),
-                valueBoxOutput("connection", width = 3)
-              )
+              
+              h1("Import data"),
+              withSpinner(uiOutput("import"), color = getOption("spinner.color", default = "blue"))
+              
       ),
       tabItem("graph",
               fluidRow(
@@ -230,6 +217,28 @@ server <- function(input, output, session) {
   #=============================================================================
   
   STRING <-reactiveValues()
+  
+  output$import <- renderUI({
+    div(
+      textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
+      selectizeInput("Species", "Species", choices = NULL, 
+                     selected = NULL, multiple = FALSE,
+                     options = list(
+                       placeholder = 'Search a species',
+                       maxOptions = 100,
+                       onInitialize = I('function() { this.setValue(""); }')
+                     )),
+      actionButton("Search", "Search"),
+      tags$br(), 
+      tags$br(), 
+      fluidRow(valueBoxOutput("sizeQuery", width = 3),
+               valueBoxOutput("unmatchedProtein", width = 3),
+               valueBoxOutput("nbNodesFinal", width = 3),
+               valueBoxOutput("connection", width = 3))
+      
+    )
+  })
+  
   
   #=============================================================================
   # Import
@@ -461,7 +470,6 @@ server <- function(input, output, session) {
       STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
       
       STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
-      cat(STRING$ID)
       STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
       STRING$UniprotID = as.character(STRING$UniprotID[1,2])
       if(!is.na(STRING$UniprotID)){
@@ -480,7 +488,6 @@ server <- function(input, output, session) {
                           choices = NULL)
       }
     } else {
-      cat("toto")
       STRING$annotation = NULL
       STRING$PDB = NULL
       shinyjs::hide(id = "PDBDIV")
@@ -907,7 +914,7 @@ server <- function(input, output, session) {
   })
   
   output$nbNodesFinal <- renderValueBox({
-    if(is.null(STRING$nodes) && nrow(STRING$nodes) == 0){
+    if(is.null(nrow(STRING$nodes))){
       inter = 0
     } else {
       inter = nrow(STRING$nodes)
