@@ -1,0 +1,246 @@
+---
+title: "Gene report"
+author: "MONET"
+date:  "`r format(Sys.time(), '%Y-%m-%d')`" 
+params:
+  annotation: NA
+  si: NA
+  gene: NA
+  description: NA
+  species : NA
+  date: NA
+
+output:
+  html_document:
+    df_print: paged
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# General information
+
+#### Gene name
+`r params$gene`
+
+#### Description 
+`r params$description`
+
+#### Species 
+`r params$species`
+
+# Functionnal annotation
+
+## Cellular component 
+The locations relative to cellular structures in which a gene product performs a function, either cellular compartments (e.g., mitochondrion), or stable macromolecular complexes of which they are parts (e.g., the ribosome). Unlike the other aspects of GO, cellular component classes refer not to processes but rather a cellular anatomy.
+
+```{r echo = F}
+datatable({
+  if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "Component")) != 0){
+    params$annotation %>% filter(category == "Component") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+      dplyr::select(term, description) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description
+      ) 
+  } else {
+    NULL
+  }
+}, selection = 'none', escape = FALSE,
+options = list(pageLength = 5, scrollX = TRUE)
+)
+```
+
+## Molecular Function
+Molecular-level activities performed by gene products. Molecular function terms describe activities that occur at the molecular level, such as “catalysis” or “transport”. GO molecular function terms represent activities rather than the entities (molecules or complexes) that perform the actions, and do not specify where, when, or in what context the action takes place. Molecular functions generally correspond to activities that can be performed by individual gene products (i.e. a protein or RNA), but some activities are performed by molecular complexes composed of multiple gene products. Examples of broad functional terms are catalytic activity and transporter activity; examples of narrower functional terms are adenylate cyclase activity or Toll-like receptor binding. To avoid confusion between gene product names and their molecular functions, GO molecular functions are often appended with the word “activity” (a protein kinase would have the GO molecular function protein kinase activity).
+
+```{r echo = F}
+datatable({
+  if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "Function")) != 0){
+    params$annotation %>% filter(category == "Function") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+      dplyr::select(term, description) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description
+      ) 
+  } else {
+    NULL
+  }
+}, selection = 'none', escape = FALSE,
+options = list(pageLength = 5, scrollX = TRUE)
+)
+```
+
+## Biological process
+The larger processes, or ‘biological programs’ accomplished by multiple molecular activities. Examples of broad biological process terms are DNA repair or signal transduction. Examples of more specific terms are pyrimidine nucleobase biosynthetic process or glucose transmembrane transport. Note that a biological process is not equivalent to a pathway. At present, the GO does not try to represent the dynamics or dependencies that would be required to fully describe a pathway.
+
+```{r echo = F}
+datatable({
+  if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "Process")) != 0){
+    params$annotation %>% filter(category == "Process") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+      dplyr::select(term, description) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description
+      ) 
+  } else {
+    NULL
+  }
+}, selection = 'none', escape = FALSE,
+options = list(pageLength = 5, scrollX = TRUE)
+)
+```
+
+## InterPro
+
+nterPro provides functional analysis of proteins by classifying them into families and predicting domains and important sites. To classify proteins in this way, InterPro uses predictive models, known as signatures, provided by several different databases (referred to as member databases) that make up the InterPro consortium. We combine protein signatures from these member databases into a single searchable resource, capitalising on their individual strengths to produce a powerful integrated database and diagnostic tool.
+
+```{r echo = F}
+datatable({
+  if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "InterPro")) != 0){
+    params$annotation %>% filter(category == "InterPro") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>")) %>%
+      dplyr::select(term, description) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description
+      ) 
+  } else {
+    NULL
+  }
+}, selection = 'none', escape = FALSE,
+options = list(pageLength = 5, scrollX = TRUE)
+)
+```
+
+## UniProt
+The mission of UniProt is to provide the scientific community with a comprehensive, high-quality and freely accessible resource of protein sequence and functional information.
+
+
+```{r echo = F}
+datatable({
+    if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "Keyword")) != 0){
+      params$annotation %>% filter(category == "Keyword") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+
+
+```
+
+## Pfam
+
+The Pfam database is a large collection of protein families, each represented by multiple sequence alignments and hidden Markov models (HMMs).
+
+
+```{r echo = F}
+
+datatable({
+    if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "Pfam")) != 0 ){
+      params$annotation %>% filter(category == "Pfam") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://pfam.xfam.org/family/',term,'" target="_blank">',term,"</a>")) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+
+```
+
+## SMART
+
+SMART (a Simple Modular Architecture Research Tool) allows the identification and annotation of genetically mobile domains and the analysis of domain architectures. More than 500 domain families found in signalling, extracellular and chromatin-associated proteins are detectable. These domains are extensively annotated with respect to phyletic distributions, functional class, tertiary structures and functionally important residues. Each domain found in a non-redundant protein database as well as search parameters and taxonomic information are stored in a relational database system. User interfaces to this database allow searches for proteins containing specific combinations of domains in defined taxa. For all the details, please refer to the publications on SMART.
+
+```{r echo = F}
+
+datatable({
+    if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "SMART")) != 0){
+      params$annotation %>% filter(category == "SMART") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://smart.embl.de/smart/do_annotation.pl?DOMAIN=',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+
+```
+
+## Reactome
+REACTOME is an open-source, open access, manually curated and peer-reviewed pathway database. Our goal is to provide intuitive bioinformatics tools for the visualization, interpretation and analysis of pathway knowledge to support basic and clinical research, genome analysis, modeling, systems biology and education. Founded in 2003, the Reactome project is led by Lincoln Stein of OICR, Peter D’Eustachio of NYULMC, Henning Hermjakob of EMBL-EBI, and Guanming Wu of OHSU.
+
+```{r echo = F}
+datatable({
+    if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "RCTM")) != 0){
+      params$annotation %>% filter(category == "RCTM") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://reactome.org/content/detail/R-',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+
+
+```
+
+## KEGG
+KEGG is a database resource for understanding high-level functions and utilities of the biological system, such as the cell, the organism and the ecosystem, from molecular-level information, especially large-scale molecular datasets generated by genome sequencing and other high-throughput experimental technologies.
+
+
+```{r echo = F}
+datatable({
+    if(!is.null(params$annotation) && nrow(params$annotation %>% filter(category == "KEGG")) != 0){
+      params$annotation %>% filter(category == "KEGG") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>")) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+
+```
+
+# R session information
+
+The versions of the R software and Bioconductor packages used for this analysis are listed below. It is important to save them if one wants to re-perform the analysis in the same conditions.
+
+```{r echo = F}
+params$si
+```

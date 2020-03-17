@@ -101,13 +101,14 @@ ui <- dashboardPage(
     tags$head(tags$style(type = "text/css", "
                canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
                ")),
+    tags$head(HTML('<link rel="stylesheet" type="text/css"
+                                     href="style.css" />')), 
     useShinyjs(),
     extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
-              
-                h1("Import data"),
-                helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+              h1("Import data"),
+              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
                eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
                sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
                amet consectetur. Massa eget egestas purus viverra accumsan in. 
@@ -120,22 +121,22 @@ ui <- dashboardPage(
                Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-                textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
-                selectizeInput("Species", "Species", choices = NULL, 
-                               selected = NULL, multiple = FALSE,
-                               options = list(
-                                 placeholder = 'Search a species',
-                                 maxOptions = 100,
-                                 onInitialize = I('function() { this.setValue(""); }')
-                               )),
-                actionButton("Search", "Search"),
-                tags$br(), 
-                h1("Overview"),
-                fluidRow(valueBoxOutput("sizeQuery", width = 3),
-                         valueBoxOutput("unmatchedProtein", width = 3),
-                         valueBoxOutput("nbNodesFinal", width = 3),
-                         valueBoxOutput("connection", width = 3))
-                
+              textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
+              selectizeInput("Species", "Species", choices = NULL, 
+                             selected = NULL, multiple = FALSE,
+                             options = list(
+                               placeholder = 'Search a species',
+                               maxOptions = 100,
+                               onInitialize = I('function() { this.setValue(""); }')
+                             )),
+              actionButton("Search", "Search"),
+              tags$br(), 
+              h1("Overview"),
+              fluidRow(valueBoxOutput("sizeQuery", width = 3),
+                       valueBoxOutput("unmatchedProtein", width = 3),
+                       valueBoxOutput("nbNodesFinal", width = 3),
+                       valueBoxOutput("connection", width = 3))
+              
               
               
       ),
@@ -167,40 +168,56 @@ ui <- dashboardPage(
                                             selected = NULL, multiple = FALSE), 
                              h3("Node information"), 
                              helpText("Click on node to have information"),
-                             h4("General information"), 
-                             htmlOutput("selected_var_gene"), 
-                             htmlOutput("selected_var_description"),
-                             htmlOutput("selected_var_species"),
-                             div(id= "PDBDIV", 
-                                 htmlOutput("PDB_title"),
-                                 selectizeInput("PDBSelector_ID", "PDB ID", choices = NULL, 
-                                                selected = NULL, multiple = FALSE),
-                                 div(id="viewport",style="width:100%; height:400px;" ),
-                             ),
-                             h4("Functionnal annotation"),
-                             htmlOutput("FA_component_title"),
-                             DTOutput('FA_component'),
-                             htmlOutput("FA_Function_title"),
-                             DTOutput('FA_Function'),
-                             htmlOutput("FA_Process_title"),
-                             DTOutput('FA_Process'), 
-                             htmlOutput("FA_KEGG_title"),
-                             DTOutput('FA_KEGG'),
-                             htmlOutput("FA_InterPro_title"),
-                             DTOutput('FA_InterPro'),
-                             htmlOutput("FA_Keyword_title"),
-                             DTOutput('FA_Keyword'),
-                             htmlOutput("FA_PMID_title"),
-                             DTOutput('FA_PMID'),
-                             htmlOutput("FA_RCTM_title"),
-                             DTOutput('FA_RCTM'),
-                             htmlOutput("FA_SMART_title"),
-                             DTOutput('FA_SMART'),
-                             htmlOutput("FA_Pfam_title"),
-                             DTOutput('FA_Pfam')
-                )))
+                             div(id= "geneZone",
+                                 HTML('<p class="infoGene">General information</p>'),
+                                 htmlOutput("selected_var_gene"), 
+                                 htmlOutput("selected_var_description"),
+                                 htmlOutput("selected_var_species"),
+                                 tags$br(),
+                                 div(id= "PDBDIV", 
+                                     htmlOutput("PDB_title"),
+                                     selectizeInput("PDBSelector_ID", "PDB ID", choices = NULL, 
+                                                    selected = NULL, multiple = FALSE),
+                                     div(id="viewport",style="width:100%; height:400px;" ),
+                                 ),
+                                 htmlOutput("FA_component_title"),
+                                 DTOutput('FA_component'),
+                                 htmlOutput("FA_Function_title"),
+                                 DTOutput('FA_Function'),
+                                 htmlOutput("FA_Process_title"),
+                                 DTOutput('FA_Process'), 
+                                 htmlOutput("FA_KEGG_title"),
+                                 DTOutput('FA_KEGG'),
+                                 htmlOutput("FA_InterPro_title"),
+                                 DTOutput('FA_InterPro'),
+                                 htmlOutput("FA_Keyword_title"),
+                                 DTOutput('FA_Keyword'),
+                                 htmlOutput("FA_PMID_title"),
+                                 DTOutput('FA_PMID'),
+                                 htmlOutput("FA_RCTM_title"),
+                                 DTOutput('FA_RCTM'),
+                                 htmlOutput("FA_SMART_title"),
+                                 DTOutput('FA_SMART'),
+                                 htmlOutput("FA_Pfam_title"),
+                                 DTOutput('FA_Pfam'),
+                                 downloadButton("reportBTN", "Generate report")
+                             ))
+                ))
       ),
       tabItem("enrichissement",
+              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
+               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
+               amet consectetur. Massa eget egestas purus viverra accumsan in. 
+               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
+               egestas integer. Hac habitasse platea dictumst quisque sagittis 
+               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
+               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
+               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
+               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
+               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
+               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
+               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
               h1("Enrichissement"), 
               h2("Go terms"),
               h3("Cellular component"),
@@ -220,6 +237,19 @@ ui <- dashboardPage(
       ),
       tabItem("rawdata",
               h1("Rawdata"), 
+              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
+               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
+               amet consectetur. Massa eget egestas purus viverra accumsan in. 
+               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
+               egestas integer. Hac habitasse platea dictumst quisque sagittis 
+               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
+               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
+               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
+               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
+               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
+               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
+               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
               h2("Proteins to genes"), 
               DTOutput('PI'),
               h2("Information for all nodes"), 
@@ -232,6 +262,19 @@ ui <- dashboardPage(
       
       tabItem("about",
               h1("Session Information"), 
+              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
+               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
+               amet consectetur. Massa eget egestas purus viverra accumsan in. 
+               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
+               egestas integer. Hac habitasse platea dictumst quisque sagittis 
+               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
+               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
+               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
+               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
+               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
+               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
+               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
               h2("R session information and parameters"),
               p("The versions of the R software and Bioconductor packages used for this analysis are listed below. 
               It is important to save them if one wants to re-perform the analysis in the same conditions."),
@@ -247,6 +290,19 @@ ui <- dashboardPage(
       
       tabItem("ref",
               h1("References"), 
+              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
+               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
+               amet consectetur. Massa eget egestas purus viverra accumsan in. 
+               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
+               egestas integer. Hac habitasse platea dictumst quisque sagittis 
+               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
+               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
+               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
+               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
+               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
+               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
+               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
               h3("STRING"), 
               p(HTML('Szklarczyk D, Gable AL, Lyon D, Junge A, Wyder S, Huerta-Cepas J, Simonovic M, Doncheva NT, Morris JH, Bork P, Jensen LJ, von Mering C.',
                      '<br>',
@@ -288,8 +344,8 @@ server <- function(input, output, session) {
   si <- sessionInfo()
   
   if(! file.exists("www/data/STRINGspecies.txt")){
-      download.file("https://stringdb-static.org/download/species.v11.0.txt", 
-                                  destfile = "www/data/STRINGspecies.txt"
+    download.file("https://stringdb-static.org/download/species.v11.0.txt", 
+                  destfile = "www/data/STRINGspecies.txt"
     )
   }
   
@@ -311,6 +367,12 @@ server <- function(input, output, session) {
   STRING <-reactiveValues()
   rvEnvent = reactiveValues()
   rvEnvent$search = F
+  
+  #=============================================================================
+  # Hide zone 
+  #=============================================================================
+  shinyjs::hide(id = "geneZone")
+  shinyjs::hide(id = "PDBDIV")
   
   #=============================================================================
   # Menu
@@ -357,15 +419,8 @@ server <- function(input, output, session) {
                "<b>Loaded via a namespace (and not attached)</b><br>" ,paste(unlist(lapply(si$loadedOnly, function(x){paste(x$Package, x$Version)})), collapse = " , ") 
     ))
   })
-
-
-  #=============================================================================
-  # Import
-  #=============================================================================
   
-  output$importUI <- renderUI({
-    
-  })
+  
   
   
   #=============================================================================
@@ -591,36 +646,55 @@ server <- function(input, output, session) {
   # Get information
   observeEvent(input$network_selected, {
     if(input$network_selected != ""){
-      method = "functional_annotation"
-      parametersEnrichment = paste0( "identifiers=", input$network_selected, 
-                                     "&species=",STRING$ourSpecies,
-                                     collapse = "")
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersEnrichment, collapse = "")
-      STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
-      
-      STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
-      STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
-      STRING$UniprotID = as.character(STRING$UniprotID[1,2])
-      if(!is.na(STRING$UniprotID)){
-        STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
-        final = NULL
-        for(i in STRING$PDB[,2]){
-          inter = read.csv(paste0("http://www.rcsb.org/pdb/rest/customReport.csv?pdbids=",i,"&reportName=StructureSummary&service=wsfile&format=csv"))
-          if(nrow(inter) != 0){
-            final = c(final, i)
-          }
+      STRING$date = format(Sys.time(), "%Y_%m_%d__%H_%M_%S")
+      m = 4
+      withProgress(message = 'Extraction in progress', value = 0, {
+        
+        incProgress(1/m, detail = "Functionnal annotation")
+        method = "functional_annotation"
+        parametersEnrichment = paste0( "identifiers=", input$network_selected, 
+                                       "&species=",STRING$ourSpecies,
+                                       collapse = "")
+        
+        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+        request_url = paste0(request_url, parametersEnrichment, collapse = "")
+        STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
+        
+        incProgress(1/m, detail = "Print zone")
+        if(!is.null(STRING$annotation) && nrow(STRING$annotation) != 0){
+          shinyjs::show(id = "geneZone")
+        } else {
+          shinyjs::hide(id = "geneZone")
         }
-        STRING$PDB = final
-      } else {
-        STRING$PDB = NULL
-        updateSelectInput(session, "PDBSelector_ID",
-                          choices = NULL)
-      }
+        
+        incProgress(1/m, detail = "Get Uniprot ID")
+        STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
+        STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
+        STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+        
+        incProgress(1/m, detail = "Get structure files")
+        if(!is.na(STRING$UniprotID)){
+          STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
+          final = NULL
+          for(i in STRING$PDB[,2]){
+            inter = read.csv(paste0("http://www.rcsb.org/pdb/rest/customReport.csv?pdbids=",i,"&reportName=StructureSummary&service=wsfile&format=csv"))
+            if(nrow(inter) != 0){
+              final = c(final, i)
+            }
+          }
+          STRING$PDB = final
+        } else {
+          STRING$PDB = NULL
+          updateSelectInput(session, "PDBSelector_ID",
+                            choices = NULL)
+        }
+        
+      })
+      
     } else {
       STRING$annotation = NULL
       STRING$PDB = NULL
+      shinyjs::hide(id = "geneZone")
       shinyjs::hide(id = "PDBDIV")
       updateSelectInput(session, "PDBSelector_ID",
                         choices = "")
@@ -652,25 +726,16 @@ server <- function(input, output, session) {
   
   output$PDB_title <- renderText({ 
     if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
-      HTML('<b><u>PDB</u></b>') 
+      HTML('<p class="infoGene">PDB</p>') 
     } else {
       NULL
     }
   })
   
-  # output$PDB_zone <- renderText({ 
-  #   if(!is.null(STRING$PDB) && nrow(STRING$PDB) != 0){
-  #     HTML('<div id="viewport" style="width:100%; height:400px;"></div>') 
-  #   } else {
-  #     NULL
-  #   }
-  # })
-  
-  
   # Go terms : Component
   output$FA_component_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
-      HTML("<b><u>Cellular component</u></b>") 
+      HTML('<p class="infoGene">Cellular component</p>') 
     } else {
       NULL
     }
@@ -695,7 +760,7 @@ server <- function(input, output, session) {
   # Go terms : Function
   output$FA_Function_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
-      HTML("<b><u>Molecular Function</u></b>") 
+      HTML('<p class="infoGene">Molecular Function</p>') 
     } else {
       NULL
     }
@@ -720,7 +785,7 @@ server <- function(input, output, session) {
   # Go terms : Process
   output$FA_Process_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
-      HTML("<b><u>Biological process</u></b>") 
+      HTML('<p class="infoGene">Biological process</p>') 
     } else {
       NULL
     }
@@ -746,7 +811,7 @@ server <- function(input, output, session) {
   # Pfam
   output$FA_Pfam_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0){
-      HTML("<b><u>Pfam</u></b>") 
+      HTML('<p class="infoGene">Pfam</p>')
     } else {
       NULL
     }
@@ -771,7 +836,7 @@ server <- function(input, output, session) {
   # SMART
   output$FA_SMART_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
-      HTML("<b><u>SMART</u></b>") 
+      HTML('<p class="infoGene">SMART</p>')
     } else {
       NULL
     }
@@ -796,7 +861,7 @@ server <- function(input, output, session) {
   # Reactome
   output$FA_PMID_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
-      HTML("<b><u>Reactome</u></b>") 
+      HTML('<p class="infoGene">Reactome</p>')
     } else {
       NULL
     }
@@ -821,7 +886,7 @@ server <- function(input, output, session) {
   # PMID
   output$FA_RCTM_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
-      HTML("<b><u>Pubmed</u></b>") 
+      HTML('<p class="infoGene">Pubmed</p>')
     } else {
       NULL
     }
@@ -846,7 +911,7 @@ server <- function(input, output, session) {
   # KEGG
   output$FA_KEGG_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
-      HTML("<b><u>KEGG</u></b>") 
+      HTML('<p class="infoGene">KEGG</p>')
     } else {
       NULL
     }
@@ -871,7 +936,7 @@ server <- function(input, output, session) {
   # InterPro
   output$FA_InterPro_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
-      HTML("<b><u>InterPro</u></b>") 
+      HTML('<p class="infoGene">InterPro</p>')
     } else {
       NULL
     }
@@ -896,7 +961,7 @@ server <- function(input, output, session) {
   # Keyword
   output$FA_Keyword_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
-      HTML("<b><u>UniProt</u></b>") 
+      HTML('<p class="infoGene">UniProt</p>')
     } else {
       NULL
     }
@@ -1067,6 +1132,27 @@ server <- function(input, output, session) {
       color = "purple"
     )
   })
+  
+  #-----------------------------------------------------------------------------
+  # Gene report
+  #-----------------------------------------------------------------------------
+  
+  output$reportBTN <- downloadHandler(
+    filename = paste0("report_",STRING$date,"_",input$network_selected,".html"),
+    content = function(file) {
+      params <- list(si = si,
+                     date = STRING$date,
+                     annotation = STRING$annotation,
+                     gene = input$network_selected,
+                     description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
+                     species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected])
+                     )
+      rmarkdown::render("report.Rmd", output_file = file,
+                        params = params,
+                        envir = new.env(parent = globalenv())
+      )
+    }
+  )
   
 }
 
