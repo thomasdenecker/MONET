@@ -69,7 +69,27 @@ jsCode <- '
 ################################################################################
 
 ui <- dashboardPage(
-  dashboardHeader(title = "MONET - IJM"),
+  dashboardHeader(title = "MONET", 
+                  dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
+                               messageItem(
+                                 from = "Find our project?",
+                                 message = "Visit our Github!",
+                                 icon = icon("github"),
+                                 href = "https://github.com/thomasdenecker/MONET"
+                               ),
+                               messageItem(
+                                 from = "New User?",
+                                 message = "Read the docs!",
+                                 icon = icon("book"),
+                                 href = "https://github.com/thomasdenecker/MONET/wiki"
+                               ),
+                               messageItem(
+                                 from = "A bug with app?",
+                                 message = "Declare an issue!",
+                                 icon = icon("exclamation-triangle"),
+                                 href = "https://github.com/thomasdenecker/MONET/issues"
+                               )
+                  )),
   dashboardSidebar(
     sidebarMenu(
       menuItem("Import data", tabName = "import"),
@@ -79,6 +99,8 @@ ui <- dashboardPage(
     )
   ),
   dashboardBody(
+    tags$head(tags$link(href = "img/icon_MONET.png",
+                        rel ="icon", type="image/png")),
     tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
     tags$head(tags$style(type = "text/css", "
                canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
@@ -87,8 +109,8 @@ ui <- dashboardPage(
     extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
+              img(src="img/logo_MONET.svg", height = "150px", style="display: block; margin-left: auto; margin-right: auto;"), 
               
-              h1("Import data"),
               withSpinner(uiOutput("import"), color = getOption("spinner.color", default = "blue"))
               
       ),
@@ -220,6 +242,7 @@ server <- function(input, output, session) {
   
   output$import <- renderUI({
     div(
+      h1("Import data"),
       textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
       selectizeInput("Species", "Species", choices = NULL, 
                      selected = NULL, multiple = FALSE,
