@@ -69,7 +69,7 @@ jsCode <- '
 ################################################################################
 
 ui <- dashboardPage(
-  dashboardHeader(title = "MONET", 
+  dashboardHeader(title = img(src="img/logo_MONET_white.svg", height = "40px"), 
                   dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
                                messageItem(
                                  from = "Find our project?",
@@ -91,16 +91,12 @@ ui <- dashboardPage(
                                )
                   )),
   dashboardSidebar(
-    sidebarMenu(
-      menuItem("Import data", tabName = "import"),
-      menuItem("Graph", tabName = "graph"),
-      menuItem("Enrichissement", tabName = "enrichissement"),
-      menuItem("Raw data", tabName = "rawdata")
-    )
+    uiOutput('sidebar')
   ),
   dashboardBody(
     tags$head(tags$link(href = "img/icon_MONET.png",
                         rel ="icon", type="image/png")),
+    tags$head(tags$script(HTML("document.title = 'MONET';"))),
     tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
     tags$head(tags$style(type = "text/css", "
                canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
@@ -109,9 +105,38 @@ ui <- dashboardPage(
     extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
-              img(src="img/logo_MONET.svg", height = "150px", style="display: block; margin-left: auto; margin-right: auto;"), 
               
-              withSpinner(uiOutput("import"), color = getOption("spinner.color", default = "blue"))
+                h1("Import data"),
+                helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
+               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
+               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
+               amet consectetur. Massa eget egestas purus viverra accumsan in. 
+               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
+               egestas integer. Hac habitasse platea dictumst quisque sagittis 
+               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
+               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
+               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
+               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
+               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
+               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
+               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
+                textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
+                selectizeInput("Species", "Species", choices = NULL, 
+                               selected = NULL, multiple = FALSE,
+                               options = list(
+                                 placeholder = 'Search a species',
+                                 maxOptions = 100,
+                                 onInitialize = I('function() { this.setValue(""); }')
+                               )),
+                actionButton("Search", "Search"),
+                tags$br(), 
+                h1("Overview"),
+                fluidRow(valueBoxOutput("sizeQuery", width = 3),
+                         valueBoxOutput("unmatchedProtein", width = 3),
+                         valueBoxOutput("nbNodesFinal", width = 3),
+                         valueBoxOutput("connection", width = 3))
+                
+              
               
       ),
       tabItem("graph",
@@ -203,6 +228,50 @@ ui <- dashboardPage(
               DTOutput('DT_network'),
               h2("Interaction"),
               DTOutput('DT_Interaction')
+      ),
+      
+      tabItem("about",
+              h1("Session Information"), 
+              h2("R session information and parameters"),
+              p("The versions of the R software and Bioconductor packages used for this analysis are listed below. 
+              It is important to save them if one wants to re-perform the analysis in the same conditions."),
+              uiOutput("sessionText"),
+              h2("Database and API version"),
+              h4("STRING"), 
+              p(HTML("<b>Version </b>: 11.0")),
+              p(HTML("<b>Documentation </b>: <a href='http://version11.string-db.org/help/api/'> http://version11.string-db.org/help/api/</a>")),
+              h4("Uniprot"), 
+              p(HTML("<b>Last modified page </b>: June 28, 2019")),
+              p(HTML("<b>Documentation </b>: <a href='https://www.uniprot.org/help/api_idmapping'> https://www.uniprot.org/help/api_idmapping</a>"))
+      ),
+      
+      tabItem("ref",
+              h1("References"), 
+              h3("STRING"), 
+              p(HTML('Szklarczyk D, Gable AL, Lyon D, Junge A, Wyder S, Huerta-Cepas J, Simonovic M, Doncheva NT, Morris JH, Bork P, Jensen LJ, von Mering C.',
+                     '<br>',
+                     '<b>STRING v11: protein-protein association networks with increased coverage, supporting functional discovery in genome-wide experimental datasets.</b>', 
+                     '<br>',
+                     'Nucleic Acids Res. 2019 Jan; 47:D607-613.',
+                     '<br>',
+                     '<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pmc/articles/PMC6323986/" target="_blank">PubMed</a>')),
+              
+              h3("NGL"), 
+              p(HTML('S Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose.',
+                     '<br>',
+                     '<b>A NGL viewer: web-based molecular graphics for large complexes.</b>', 
+                     '<br>',
+                     'Bioinformatics: bty419, 2018.',
+                     '<br>',
+                     '<a href="http://dx.doi.org/10.1093/bioinformatics/bty419" target="_blank">doi:10.1093/bioinformatics/bty419</a>')),
+              
+              p(HTML('AS Rose and PW Hildebrand.',
+                     '<br>',
+                     '<b>NGL Viewer: a web application for molecular visualization.</b>', 
+                     '<br>',
+                     'Nucl Acids Res (1 July 2015) 43 (W1): W576-W579 first published online April 29, 2015.',
+                     '<br>',
+                     '<a href="https://doi.org/10.1093/nar/gkv402" target="_blank">doi:10.1093/nar/gkv402</a>'))
       )
     ),
     tags$style(type = "text/css", "#networkDiv {height: calc(100vh - 115px) !important;}
@@ -219,13 +288,14 @@ server <- function(input, output, session) {
   si <- sessionInfo()
   
   if(! file.exists("www/data/STRINGspecies.txt")){
-    speciesSTRING = download.file("https://stringdb-static.org/download/species.v11.0.txt", 
+      download.file("https://stringdb-static.org/download/species.v11.0.txt", 
                                   destfile = "www/data/STRINGspecies.txt"
     )
   }
   
   speciesSTRING = read.csv2("www/data/STRINGspecies.txt", 
                             sep ="\t", stringsAsFactors = F)
+  
   updateSelectInput(session, "Species",
                     choices = setNames(speciesSTRING[,1],speciesSTRING[,3] ) , 
                     
@@ -239,27 +309,62 @@ server <- function(input, output, session) {
   #=============================================================================
   
   STRING <-reactiveValues()
+  rvEnvent = reactiveValues()
+  rvEnvent$search = F
   
-  output$import <- renderUI({
-    div(
-      h1("Import data"),
-      textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
-      selectizeInput("Species", "Species", choices = NULL, 
-                     selected = NULL, multiple = FALSE,
-                     options = list(
-                       placeholder = 'Search a species',
-                       maxOptions = 100,
-                       onInitialize = I('function() { this.setValue(""); }')
-                     )),
-      actionButton("Search", "Search"),
-      tags$br(), 
-      tags$br(), 
-      fluidRow(valueBoxOutput("sizeQuery", width = 3),
-               valueBoxOutput("unmatchedProtein", width = 3),
-               valueBoxOutput("nbNodesFinal", width = 3),
-               valueBoxOutput("connection", width = 3))
+  #=============================================================================
+  # Menu
+  #=============================================================================
+  
+  observeEvent(rvEnvent$search, {
+    if(rvEnvent$search){
+      output$sidebar <- renderUI({
+        sidebarMenu( id = "tabs",
+                     menuItem("Import data", tabName = "import", icon = icon("file-import")),
+                     menuItem("Graph", tabName = "graph", icon = icon("project-diagram") ),
+                     menuItem("Enrichissement", tabName = "enrichissement", icon = icon("search")),
+                     menuItem("Raw data", tabName = "rawdata", icon = icon("file")),
+                     menuItem("About", tabName = "about", icon = icon("cubes")),
+                     menuItem("References", tabName = "ref", icon = icon("book"))
+        )
+      })
       
-    )
+      updateTabItems(session, "tabs", selected = "description")
+      shinyjs::runjs("window.scrollTo(0, 0)")
+      
+    } else {
+      output$sidebar <- renderUI({
+        sidebarMenu(id = "tabs",
+                    menuItem("Import data", tabName = "import", icon = icon("file-import")),
+                    menuItem("About", tabName = "about", icon = icon("cubes")),
+                    menuItem("References", tabName = "ref", icon = icon("book"))
+        )
+      })
+      updateTabItems(session, "tabs", selected = "import")
+      shinyjs::runjs("window.scrollTo(0, 0)")
+    }
+  })
+  
+  #=============================================================================
+  # About
+  #=============================================================================
+  
+  output$sessionText = renderUI({
+    HTML(paste(si[[1]]$version.string,",", si[[1]]$platform, "<br>","<br>",
+               "<b>Locale</b><br>", paste(si[[3]], collapse = " , "), "<br>","<br>",
+               "<b>Attached base packages</b><br>", paste(si[[5]], collapse = " , "),"<br>","<br>",
+               "<b>Other attached packages</b><br>", paste(unlist(lapply(si$otherPkgs, function(x){paste(x$Package, x$Version)})), collapse = " , "), "<br>","<br>",
+               "<b>Loaded via a namespace (and not attached)</b><br>" ,paste(unlist(lapply(si$loadedOnly, function(x){paste(x$Package, x$Version)})), collapse = " , ") 
+    ))
+  })
+
+
+  #=============================================================================
+  # Import
+  #=============================================================================
+  
+  output$importUI <- renderUI({
+    
   })
   
   
@@ -400,6 +505,9 @@ server <- function(input, output, session) {
       colnames(STRING$links) = c("from", "to")
       
     })
+    
+    rvEnvent$search = T
+    
   })
   
   observeEvent(input$colo, {
