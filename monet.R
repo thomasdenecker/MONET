@@ -21,6 +21,7 @@ library(shinyWidgets)
 library(shinycssloaders)
 library(DT)
 require(visNetwork)
+library(httr)
 
 ################################################################################
 ###                                URL                                       ###
@@ -74,7 +75,7 @@ ui <- dashboardPage(
                                messageItem(
                                  from = "Find our project?",
                                  message = "Visit our Github!",
-                                 icon = icon("github"),
+                                 icon = icon("github", class = "fa"),
                                  href = "https://github.com/thomasdenecker/MONET"
                                ),
                                messageItem(
@@ -121,14 +122,18 @@ ui <- dashboardPage(
                Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-              textAreaInput("protList", "Protein list", placeholder = "FTR1,FET3,..."),
-              selectizeInput("Species", "Species", choices = NULL, 
+              textAreaInput("protList", "Protein list", placeholder = "FTR1\nFET3\n...", width = "500px", resize = "vertical", height = "200px"),
+              selectizeInput("Species", "Species", width = "500px", choices = NULL, 
                              selected = NULL, multiple = FALSE,
                              options = list(
                                placeholder = 'Search a species',
                                maxOptions = 100,
                                onInitialize = I('function() { this.setValue(""); }')
                              )),
+              h4("Limits"),
+              helpText("Limits the number of matches per query identifier"),
+              numericInput(inputId = "limitsNodes", label = NULL, value = 10, width = "500px"),
+              
               actionButton("Search", "Search"),
               tags$br(), 
               h1("Overview"),
@@ -136,9 +141,7 @@ ui <- dashboardPage(
                        valueBoxOutput("unmatchedProtein", width = 3),
                        valueBoxOutput("nbNodesFinal", width = 3),
                        valueBoxOutput("connection", width = 3))
-              
-              
-              
+
       ),
       tabItem("graph",
               fluidRow(
@@ -173,6 +176,13 @@ ui <- dashboardPage(
                                  htmlOutput("selected_var_gene"), 
                                  htmlOutput("selected_var_description"),
                                  htmlOutput("selected_var_species"),
+                                 tags$br(),
+                                 HTML('<p class="infoGene">Link external databases</p>'),
+                                 htmlOutput("selected_var_refseq", style="display: inline-block;"),
+                                 htmlOutput("selected_var_KEGG", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_uniprot", style="display: inline-block;"),
+                                 htmlOutput("selected_var_GeneCard", style="display: inline-block;"),
+                                 tags$br(),
                                  tags$br(),
                                  div(id= "PDBDIV", 
                                      htmlOutput("PDB_title"),
@@ -236,7 +246,7 @@ ui <- dashboardPage(
               DTOutput('PMID')
       ),
       tabItem("rawdata",
-              h1("Rawdata"), 
+              h1("Raw data"), 
               helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
                eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
                sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
@@ -452,7 +462,8 @@ server <- function(input, output, session) {
                                collapse = "")
       
       request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersInfo, collapse = "")
+      request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
+      
       STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
       
       STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
@@ -464,7 +475,7 @@ server <- function(input, output, session) {
       #-------------------------------------------------------------------------------
       incProgress(1/m, detail = "Add new proteins")
       method = "interaction_partners"
-      parametersGraph = paste0(parameters, "&limit=",limitsNodes)
+      parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
       
       request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
       request_url = paste0(request_url, parametersGraph, collapse = "")
@@ -485,8 +496,9 @@ server <- function(input, output, session) {
       
       request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
       request_url = paste0(request_url, parametersNetworks, collapse = "")
+      cat(request_url)
       STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
-      
+ 
       #-------------------------------------------------------------------------------
       # Récupération de l'information pour les noeuds 
       #-------------------------------------------------------------------------------
@@ -552,7 +564,7 @@ server <- function(input, output, session) {
       if(length(STRING$listUnknow) != 0){
         STRING$nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
                                            "label"= STRING$listUnknow, 
-                                           "shape" = "rectangle", 
+                                           "shape" = "square", 
                                            "color" = "gray")) %>% distinct()
       }
       
@@ -638,6 +650,95 @@ server <- function(input, output, session) {
   output$selected_var_species <- renderText({ 
     HTML(paste("<b>Species </b>:<i>", unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]), "</i>"))
   })
+  #=============================================================================
+  # Link external databases
+  #=============================================================================
+  output$selected_var_refseq <- renderUI({
+  
+    STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
+    if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
+      if(length(STRING$refseq[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/refseq_logo_small.png">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.ncbi.nlm.nih.gov/protein/',unique(STRING$refseq[,2]),'" target="_blank">',unique(STRING$refseq[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png"></a>'))
+      }
+    } else {
+      NULL
+    }
+
+  })
+  
+  output$selected_var_KEGG <- renderUI({
+    
+    STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
+    if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
+      if(length(STRING$linkKEGG[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/kegg_logo_small.png">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank">',unique(STRING$linkKEGG[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png"></a>'))
+      }
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_uniprot<- renderUI({
+    
+    if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0){
+      if(length(STRING$UniprotID) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/uniprot_logo_small.png">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank">',unique(STRING$UniprotID),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png"></a>'))
+      }
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_GeneCard<- renderUI({
+    STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+    if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
+      if(length(STRING$linkGeneCard[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/genecards_logo_small.png">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank">',unique(STRING$linkGeneCard[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png"></a>'))
+      }
+    } else {
+      NULL
+    }
+  })
+  
+  
   
   #=============================================================================
   # Gene selected Information
