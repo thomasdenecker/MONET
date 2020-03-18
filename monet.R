@@ -20,7 +20,7 @@ library(shinydashboard)
 library(shinyWidgets)
 library(shinycssloaders)
 library(DT)
-require(visNetwork)
+library(visNetwork)
 library(httr)
 
 ################################################################################
@@ -180,8 +180,12 @@ ui <- dashboardPage(
                                  HTML('<p class="infoGene">Link external databases</p>'),
                                  htmlOutput("selected_var_refseq", style="display: inline-block;"),
                                  htmlOutput("selected_var_KEGG", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
-                                 htmlOutput("selected_var_uniprot", style="display: inline-block;"),
-                                 htmlOutput("selected_var_GeneCard", style="display: inline-block;"),
+                                 htmlOutput("selected_var_uniprot", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_GeneCard", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_ensembl", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_nextprot", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_CGD", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
+                                 htmlOutput("selected_var_SGD", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
                                  tags$br(),
                                  tags$br(),
                                  div(id= "PDBDIV", 
@@ -655,41 +659,40 @@ server <- function(input, output, session) {
   #=============================================================================
   output$selected_var_refseq <- renderUI({
   
-    STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
+    
     if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
       if(length(STRING$refseq[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/refseq_logo_small.png">
+          <img src="img/refseq_logo_small.png" height="20px">
         </button>
         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
         ',paste0('<a class="dropdown-item" href="https://www.ncbi.nlm.nih.gov/protein/',unique(STRING$refseq[,2]),'" target="_blank">',unique(STRING$refseq[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
       }else {
-        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png"></a>'))
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png" height="20px"></a>'))
       }
     } else {
       NULL
     }
 
   })
-  
+
   output$selected_var_KEGG <- renderUI({
     
-    STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
     if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
       if(length(STRING$linkKEGG[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/kegg_logo_small.png">
+          <img src="img/kegg_logo_small.png" height="20px">
         </button>
         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
         ',paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank">',unique(STRING$linkKEGG[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
       }else {
-        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png"></a>'))
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png" height="20px"></a>'))
       }
     } else {
       NULL
@@ -703,41 +706,131 @@ server <- function(input, output, session) {
       if(length(STRING$UniprotID) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/uniprot_logo_small.png">
+          <img src="img/uniprot_logo_small.png" height="20px">
         </button>
         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
         ',paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank">',unique(STRING$UniprotID),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
       }else {
-        HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png"></a>'))
+        HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png" height="20px"></a>'))
       }
     } else {
       NULL
     }
     
   })
-  
+ 
   output$selected_var_GeneCard<- renderUI({
-    STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+   
     if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
+      shinyjs::show(id = "selected_var_GeneCard")
       if(length(STRING$linkGeneCard[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/genecards_logo_small.png">
+          <img src="img/genecards_logo_small.png" height="20px">
         </button>
         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
         ',paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank">',unique(STRING$linkGeneCard[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
       }else {
-        HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png"></a>'))
+        HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png" height="20px"></a>'))
       }
     } else {
+      shinyjs::hide(id = "selected_var_GeneCard")
+      NULL
+      
+    }
+  })
+  
+  output$selected_var_ensembl<- renderUI({
+    
+    if(!is.null(STRING$linkensembl) && length(STRING$linkensembl[,2]) != 0){
+      shinyjs::show(id = "selected_var_ensembl")
+      if(length(STRING$linkensembl[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/ensembl_logo_small.png" height="20px">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank">',unique(STRING$linkensembl[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank"><img src="img/ensembl_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_ensembl")
       NULL
     }
   })
   
+  output$selected_var_nextprot<- renderUI({
+    
+    if(!is.null(STRING$linknextprot) && length(STRING$linknextprot[,2]) != 0){
+      shinyjs::show(id = "selected_var_nextprot")
+      if(length(STRING$linknextprot[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/nextprot_logo_small.png" height="20px">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/',unique(STRING$linknextprot[,2]),'/" target="_blank">',unique(STRING$linknextprot[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/NX_P06493/',unique(STRING$linknextprot[,2]),'/" target="_blank"><img src="img/nextprot_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_nextprot")
+      NULL
+    }
+  })
+  
+  output$selected_var_CGD<- renderUI({
+    
+    if(!is.null(STRING$linkCGD) && length(STRING$linkCGD[,2]) != 0){
+      shinyjs::show(id = "selected_var_CGD")
+      if(length(STRING$linkCGD[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/CGD_logo_small.png" height="20px">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank">',unique(STRING$linkCGD[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank"><img src="img/CGD_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_CGD")
+      NULL
+    }
+  })
+
+  output$selected_var_SGD<- renderUI({
+    
+    if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
+      shinyjs::show(id = "selected_var_SGD")
+      if(length(STRING$linkSGD[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <img src="img/SGD_logo_small.png" height="20px">
+        </button>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+        ',paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank">',unique(STRING$linkSGD[,2]),'</a>', collapse="<br>"),'
+        </div>
+      </div>', collapse=""))
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank"><img src="img/SGD_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_SGD")
+      NULL
+    }
+  })
   
   
   #=============================================================================
@@ -746,6 +839,23 @@ server <- function(input, output, session) {
   
   # Get information
   observeEvent(input$network_selected, {
+    #---------------------------------------------------------------------------
+    # Clean step 
+    #---------------------------------------------------------------------------
+    
+    STRING$refseq = NULL 
+    STRING$linkKEGG = NULL 
+    STRING$UniprotID = NULL 
+    STRING$linkGeneCard = NULL 
+    STRING$linkensembl = NULL 
+    STRING$linknextprot = NULL
+    STRING$linkCGD = NULL
+    STRING$linkSGD = NULL
+    
+    #---------------------------------------------------------------------------
+    # clean step 
+    #---------------------------------------------------------------------------
+    
     if(input$network_selected != ""){
       STRING$date = format(Sys.time(), "%Y_%m_%d__%H_%M_%S")
       m = 4
@@ -784,6 +894,28 @@ server <- function(input, output, session) {
             }
           }
           STRING$PDB = final
+          
+          STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
+          STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
+          
+          speciesInter = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]) 
+          
+          if(speciesInter == "Homo sapiens"){
+            STRING$linknextprot = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            STRING$linkensembl = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+          } else if (grepl('Candida ', speciesInter)){
+            STRING$linkCGD = as.matrix(idMappingUniprot("ID", "CGD", unique(STRING$UniprotID), "tab"))
+          } else if (grepl('Saccharomyces cerevisiae', speciesInter)){
+            STRING$linkSGD = as.matrix(idMappingUniprot("ID", "SGD_ID", unique(STRING$UniprotID), "tab"))
+          } else {
+            STRING$linkGeneCard = NULL 
+            STRING$linkensembl = NULL 
+            STRING$linknextprot = NULL
+            STRING$linkCGD = NULL
+            STRING$linkSGD = NULL
+          }
+          
         } else {
           STRING$PDB = NULL
           updateSelectInput(session, "PDBSelector_ID",
