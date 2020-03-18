@@ -105,6 +105,7 @@ ui <- dashboardPage(
     tags$head(HTML('<link rel="stylesheet" type="text/css"
                                      href="style.css" />')), 
     useShinyjs(),
+    useShinyalert(),
     extendShinyjs(text = jsCode,functions = "Visu3D"),
     tabItems(
       tabItem("import",
@@ -443,141 +444,160 @@ server <- function(input, output, session) {
   
   observeEvent(input$Search, {
     m = 8
+    
     withProgress(message = 'Extraction in progress', value = 0, {
       
       incProgress(1/m, detail = "Initilization")
       
       STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
-      STRING$ourSpecies = input$Species
       
-      STRING$associationProtGenes = setNames(rep(NA, length(STRING$initProt)), STRING$initProt)
-      
-      parameters = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
-                           "&species=",STRING$ourSpecies,
-                           collapse = "")
-      
-      #-------------------------------------------------------------------------------
-      # Association prot to gene par STRING
-      #-------------------------------------------------------------------------------
-      incProgress(1/m, detail = "Protein to gene")
-      method = "get_string_ids"
-      parametersInfo = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
-                               "&species=",STRING$ourSpecies,
-                               collapse = "")
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
-      
-      STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
-      
-      STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
-      STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
-      STRING$associationProtGenes[is.na(STRING$associationProtGenes)] = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
-      
-      #-------------------------------------------------------------------------------
-      # Nouvelles connexions
-      #-------------------------------------------------------------------------------
-      incProgress(1/m, detail = "Add new proteins")
-      method = "interaction_partners"
-      parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersGraph, collapse = "")
-      STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
-                                         stringsAsFactors = F)
-      
-      #-------------------------------------------------------------------------------
-      # Connexions entre les nouvelles 
-      #-------------------------------------------------------------------------------
-      incProgress(1/m, detail = "Generate new interactions")
-      listProtInteraction = unique(c(STRING$dataInteraction[,"preferredName_A"], 
-                                     STRING$dataInteraction[,"preferredName_B"]))
-      method = "network"
-      parametersNetworks = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
-                                   "&species=",STRING$ourSpecies,
-                                   collapse = "")
-      
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersNetworks, collapse = "")
-      cat(request_url)
-      STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
- 
-      #-------------------------------------------------------------------------------
-      # Récupération de l'information pour les noeuds 
-      #-------------------------------------------------------------------------------
-      incProgress(1/m, detail = "Get information")
-      method = "get_string_ids"
-      parametersInfo = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
-                               "&species=",STRING$ourSpecies,
-                               collapse = "")
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersInfo, collapse = "")
-      STRING$dataInfoAll = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
-      STRING$dataInfoAll = STRING$dataInfoAll %>% 
-        filter(preferredName %in% listProtInteraction)
-      
-      #---------------------------------------------------------------------------
-      # Enrichissement
-      #---------------------------------------------------------------------------
-      incProgress(1/m, detail = "Calculate enrichissement")
-      method = "enrichment"
-      parametersEnrichment = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
-                                     "&species=",STRING$ourSpecies,
-                                     collapse = "")
-      
-      request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-      request_url = paste0(request_url, parametersEnrichment, collapse = "")
-      STRING$dataEnrichissement = read.csv2(request_url, sep ="\t", header = T)
-      
-      #---------------------------------------------------------------------------
-      # Component
-      #---------------------------------------------------------------------------
-      incProgress(1/m, detail = "Component analysis")
-      
-      updateSelectInput(session, "colo",
-                        choices = c("None" = "None", 
-                                    setNames(as.character(unique(STRING$dataEnrichissement$category)), 
-                                             as.character(unique(STRING$dataEnrichissement$category)))) ,
-                        selected = "None"
-      )
-      
-      #---------------------------------------------------------------------------
-      # Graph creation
-      #---------------------------------------------------------------------------
-      incProgress(1/m, detail = "Graph creation")
-      
-      if(nrow(STRING$dataInfoAll) !=0 ){
-        STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
-          mutate(annotation = preferredName,
-                 type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                  T ~ "circle"),
-                 color = "orange")
+      if(length(STRING$initProt) > 500){
+        
+        shinyalert("Oops!", "The graph cannot contain more than 500 nodes. Reduce the list to be searched", type = "error")
+        rvEnvent$search = F
         
       } else {
-        STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
-          mutate(annotation = preferredName,
-                 type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                  T ~ "circle")) %>%
-          mutate(color = "orange")
+        STRING$ourSpecies = input$Species
+        
+        STRING$associationProtGenes = setNames(rep(NA, length(STRING$initProt)), STRING$initProt)
+        
+        parameters = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
+                             "&species=",STRING$ourSpecies,
+                             collapse = "")
+        
+        #-------------------------------------------------------------------------------
+        # Association prot to gene par STRING
+        #-------------------------------------------------------------------------------
+        incProgress(1/m, detail = "Protein to gene")
+        method = "get_string_ids"
+        parametersInfo = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
+                                 "&species=",STRING$ourSpecies,
+                                 collapse = "")
+        
+        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+        request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
+        STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
+        
+        STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
+        STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+        STRING$associationProtGenes[is.na(STRING$associationProtGenes)] = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+        
+        #-------------------------------------------------------------------------------
+        # Nouvelles connexions
+        #-------------------------------------------------------------------------------
+        incProgress(1/m, detail = "Add new proteins")
+        method = "interaction_partners"
+        parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
+        
+        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+        request_url = paste0(request_url, parametersGraph, collapse = "")
+        STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
+                                           stringsAsFactors = F)
+        
+        if(nrow(STRING$dataInteraction) > 1000){
+          
+          shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
+          rvEnvent$search = F
+          
+        } else {
+          #-------------------------------------------------------------------------------
+          # Connexions entre les nouvelles 
+          #-------------------------------------------------------------------------------
+          incProgress(1/m, detail = "Generate new interactions")
+          listProtInteraction = unique(c(STRING$dataInteraction[,"preferredName_A"], 
+                                         STRING$dataInteraction[,"preferredName_B"]))
+          method = "network"
+          parametersNetworks = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                       "&species=",STRING$ourSpecies, "&add_nodes=0",
+                                       collapse = "")
+          
+          
+          request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+          request_url = paste0(request_url, parametersNetworks, collapse = "")
+          cat(request_url)
+          STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
+          
+          #-------------------------------------------------------------------------------
+          # Récupération de l'information pour les noeuds 
+          #-------------------------------------------------------------------------------
+          incProgress(1/m, detail = "Get information")
+          method = "get_string_ids"
+          parametersInfo = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                   "&species=",STRING$ourSpecies,
+                                   collapse = "")
+          
+          request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+          request_url = paste0(request_url, parametersInfo, collapse = "")
+          STRING$dataInfoAll = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
+          STRING$dataInfoAll = STRING$dataInfoAll %>% 
+            filter(preferredName %in% listProtInteraction)
+          
+          #---------------------------------------------------------------------------
+          # Enrichissement
+          #---------------------------------------------------------------------------
+          incProgress(1/m, detail = "Calculate enrichissement")
+          method = "enrichment"
+          parametersEnrichment = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                         "&species=",STRING$ourSpecies,
+                                         collapse = "")
+          
+          request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+          request_url = paste0(request_url, parametersEnrichment, collapse = "")
+          STRING$dataEnrichissement = read.csv2(request_url, sep ="\t", header = T)
+          
+          #---------------------------------------------------------------------------
+          # Component
+          #---------------------------------------------------------------------------
+          incProgress(1/m, detail = "Component analysis")
+          
+          updateSelectInput(session, "colo",
+                            choices = c("None" = "None", 
+                                        setNames(as.character(unique(STRING$dataEnrichissement$category)), 
+                                                 as.character(unique(STRING$dataEnrichissement$category)))) ,
+                            selected = "None"
+          )
+          
+          #---------------------------------------------------------------------------
+          # Graph creation
+          #---------------------------------------------------------------------------
+          incProgress(1/m, detail = "Graph creation")
+          
+          if(nrow(STRING$dataInfoAll) !=0 ){
+            STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
+              mutate(annotation = preferredName,
+                     type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
+                                      T ~ "circle"),
+                     color = "orange")
+            
+          } else {
+            STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
+              mutate(annotation = preferredName,
+                     type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
+                                      T ~ "circle")) %>%
+              mutate(color = "orange")
+          }
+          
+          colnames(STRING$nodes) = c("id", "label", "shape", "color")
+          
+          if(length(STRING$listUnknow) != 0){
+            STRING$nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
+                                               "label"= STRING$listUnknow, 
+                                               "shape" = "square", 
+                                               "color" = "gray")) %>% distinct()
+          }
+          
+          STRING$links = STRING$dataNetwork[, c("preferredName_A", "preferredName_B")]
+          colnames(STRING$links) = c("from", "to")
+          
+          rvEnvent$search = T
+        }
+        
+        
       }
-      
-      colnames(STRING$nodes) = c("id", "label", "shape", "color")
-      
-      if(length(STRING$listUnknow) != 0){
-        STRING$nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
-                                           "label"= STRING$listUnknow, 
-                                           "shape" = "square", 
-                                           "color" = "gray")) %>% distinct()
-      }
-      
-      STRING$links = STRING$dataNetwork[, c("preferredName_A", "preferredName_B")]
-      colnames(STRING$links) = c("from", "to")
       
     })
     
-    rvEnvent$search = T
+    
     
   })
   
