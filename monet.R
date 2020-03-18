@@ -22,7 +22,8 @@ library(shinycssloaders)
 library(DT)
 library(visNetwork)
 library(httr)
-library(googleVis)
+library(plotly)
+library(reshape2)
 
 ################################################################################
 ###                                URL                                       ###
@@ -197,10 +198,19 @@ ui <- dashboardPage(
                          valueBoxOutput("unmatchedProtein", width = 3),
                          valueBoxOutput("nbNodesFinal", width = 3),
                          valueBoxOutput("connection", width = 3)),
-                uiOutput("HistoValues"),
-                plotOutput("TopSelectedhist"),
+                fluidRow(box(width =6,title = 'Distance distribution', solidHeader =T,status = "primary", height = 507,
+                             plotlyOutput("TopSelectedhist")
+                ),
+                box(width = 6,title = 'Value distribution', solidHeader =T, status = "primary", 
+                    plotlyOutput("HistoValues"),
+                    tags$style("#divSelect .selectize-control {margin-bottom: 0px !important;}
+                                #divSelect .form-group {margin-bottom: 3px !important;margin-top: 3px !important;}"), 
+                    div(id = "divSelect", selectizeInput(inputId = "SelectHisto", NULL, width = "100%", choices = NULL, 
+                                                         selected = NULL, multiple = FALSE) )
+                )
+                ),
                 plotOutput("igraph")
-                   
+                
       ),
       tabItem("graph",
               fluidRow(
@@ -508,10 +518,10 @@ server <- function(input, output, session) {
     req(input$file)
     
     STRING$df <- read.csv(input$file$datapath,
-                   header = as.logical(input$header),
-                   sep = input$sep,
-                   quote = input$quote,
-                   nrows=5, stringsAsFactors = F
+                          header = as.logical(input$header),
+                          sep = input$sep,
+                          quote = input$quote,
+                          nrows=5, stringsAsFactors = F
     )
     
     STRING$df %>% dplyr::mutate_if(is.character, function(x){
@@ -538,7 +548,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "colCoExpression", 
                       choices = inter )
   })
-
+  
   #=============================================================================
   # About
   #=============================================================================
@@ -556,14 +566,54 @@ server <- function(input, output, session) {
   #=============================================================================
   # Overview
   #=============================================================================
-  output$TopSelectedhist <- renderPlot({
+  output$TopSelectedhist <- renderPlotly({
     # hist of distances
-    hist(STRING$triangMatrix, breaks = 100, xlab = "Distance", main = "")
-    abline(v= STRING$seuil, col = "red", lty = 3)
-    legend("topright", lty = 3, legend = paste0("Top ",input$topSelected ,"%"), col = "red", box.lty = 0)
+    if(!is.null(input$SelectHisto) && input$SelectHisto != ""){
+      threshold = STRING$seuil
+      p<- ggplot(melt(STRING$triangMatrix), aes(x=value)) +
+        geom_histogram(bins = 30, colour="#FFFFFF00", fill="#0073b7") +
+        geom_vline(aes(xintercept=threshold),
+                   color="red", linetype="dashed", size=1) + 
+        theme(
+          panel.background = element_rect(fill = "#FFFFFF00", colour = "black",
+                                          size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.25, linetype = 'solid',
+                                          colour = "gray"), 
+          panel.grid.minor = element_line(size = 0.25, linetype = 'solid',
+                                          colour = "grey"),
+          plot.background = element_rect(fill = "#FFFFFF00")
+        ) + xlab("Distance values") + ylab("")
+      
+      ggplotly(p)
+      
+    } else {
+      NULL
+    }
+    
   })
   
-
+  output$HistoValues <- renderPlotly({
+    if(!is.null(input$SelectHisto) && input$SelectHisto != ""){
+      p<- ggplot(melt(as.numeric(STRING$importFile[, input$SelectHisto])), aes(x=value)) +
+        geom_histogram(bins = 30 , colour="#FFFFFF00", fill="#0073b7") +
+        theme(
+          panel.background = element_rect(fill = "#FFFFFF00", colour = "black",
+                                          size = 2, linetype = "solid"),
+          panel.grid.major = element_line(size = 0.25, linetype = 'solid',
+                                          colour = "gray"), 
+          panel.grid.minor = element_line(size = 0.25, linetype = 'solid',
+                                          colour = "grey"),
+          plot.background = element_rect(fill = "#FFFFFF00")
+        ) + xlab("Values") + ylab("")
+      
+      ggplotly(p)
+      
+    } else {
+      NULL
+    }
+    
+  })
+  
   output$igraph <- renderPlot({
     g = graph_from_data_frame(STRING$lien, directed = FALSE)
     V(g)$size = 0.5
@@ -574,21 +624,8 @@ server <- function(input, output, session) {
   })
   
   
-  output$HistoValues <- renderUI({
-    if(!is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
-      lapply(1:length(input$colCoExpression), function(i) {
-        box( 
-          title = input$colCoExpression[i], 
-          solidHeader = TRUE,
-          uiOutput(paste0("Hist_",i))
-        )
-      })
-    } else {
-      NULL
-    }
-  })
   
-
+  
   #=============================================================================
   # Import
   #=============================================================================
@@ -614,6 +651,12 @@ server <- function(input, output, session) {
         STRING$initProt = STRING$importFile[, input$protColumn]
         
         if(! is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
+          
+          updateSelectizeInput(session, "SelectHisto", 
+                               choices = input$colCoExpression, 
+                               selected = input$colCoExpression[1])
+          
+          STRING$colCoExpression = input$colCoExpression
           data = STRING$importFile
           rownames(data) = data[, input$protColumn]
           data = data[,  input$colCoExpression]
@@ -654,19 +697,6 @@ server <- function(input, output, session) {
           STRING$lien = lien
           
           data = STRING$importFile
-          lapply(1:length(input$colCoExpression), function(i) {
-            output[[paste0("Hist_",i)]] <- renderGvis({
-              gvisHistogram(data.frame(Value = as.numeric(data[, input$colCoExpression[i]])), 
-                            chartid = paste0("Gvis_Hist_",i) ,
-                            options=list(
-                              colors="['#ff0000']",
-                              legend="{ position: 'none'}",
-                              title="Values",
-                              width='100%', height=360))
-              
-            })
-          })
-          
         }
       }
       
