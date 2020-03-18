@@ -579,7 +579,7 @@ server <- function(input, output, session) {
       lapply(1:length(input$colCoExpression), function(i) {
         box( 
           title = input$colCoExpression[i], 
-          solidHeader = TRUE, collapsible = TRUE,collapsed = T,
+          solidHeader = TRUE,
           uiOutput(paste0("Hist_",i))
         )
       })
