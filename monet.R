@@ -22,6 +22,7 @@ library(shinycssloaders)
 library(DT)
 library(visNetwork)
 library(httr)
+library(googleVis)
 
 ################################################################################
 ###                                URL                                       ###
@@ -123,26 +124,83 @@ ui <- dashboardPage(
                Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-              textAreaInput("protList", "Protein list", placeholder = "FTR1\nFET3\n...", width = "500px", resize = "vertical", height = "200px"),
-              selectizeInput("Species", "Species", width = "500px", choices = NULL, 
+              h4(class = "infoGene","1- Select an import method"),
+              selectizeInput("dataInputType", NULL, 
+                             width = "500px", 
+                             choices = c("From a list (carriage return)" = "list", 
+                                         "From a file" = "file"), 
+                             selected = NULL, multiple = FALSE),
+              
+              textAreaInput("protList", NULL, placeholder = "FTR1\nFET3\n...",
+                            width = "500px", resize = "vertical", height = "200px"),
+              
+              div(id= "importFileDiv",
+                  fluidRow(
+                    column(3,
+                           h4("Parameters"),
+                           fileInput("file",label = NULL,
+                                     buttonLabel = "Browse...",
+                                     placeholder = "No file selected"),align = "center",
+                           # Input: Checkbox if file has header
+                           radioButtons("header", "Header",
+                                        choices = c("Yes" = TRUE,
+                                                    "No" = FALSE),
+                                        selected = TRUE, inline=T),
+                           
+                           # Input: Select separator ----
+                           radioButtons("sep", "Separator",
+                                        choices = c(Comma = ",",
+                                                    Semicolon = ";",
+                                                    Tab = "\t"),
+                                        selected = "\t", inline=T),
+                           
+                           # Input: Select quotes ----
+                           radioButtons("quote", "Quote",
+                                        choices = c(None = "",
+                                                    "Double Quote" = '"',
+                                                    "Single Quote" = "'"),
+                                        selected = "", inline=T)
+                    ), 
+                    column(9, 
+                           h4("File preview"),
+                           dataTableOutput(outputId = "contents"))
+                  ),
+                  selectizeInput("protColumn", "Select the protein column", choices = NULL, 
+                                 selected = NULL, multiple = FALSE),
+                  
+                  selectizeInput("colCoExpression", "Select columns to calculate co-expression", choices = NULL, 
+                                 selected = NULL, multiple = T),
+                  numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
+                               value = 10, width = "500px"),
+                  
+              ),
+              
+              h4(class = "infoGene","2- Select a species"),
+              selectizeInput("Species", NULL, width = "500px", choices = NULL, 
                              selected = NULL, multiple = FALSE,
                              options = list(
                                placeholder = 'Search a species',
                                maxOptions = 100,
                                onInitialize = I('function() { this.setValue(""); }')
                              )),
-              h4("Limits"),
-              helpText("Limits the number of matches per query identifier"),
-              numericInput(inputId = "limitsNodes", label = NULL, value = 10, width = "500px"),
+              h4(class = "infoGene", "3- Select a limits"),
+              helpText("Limits the number of interaction partners retrieved per protein (most confident interactions come first)"),
+              numericInput(inputId = "limitsNodes", label = NULL, min = 1,
+                           value = 10, width = "500px"),
               
-              actionButton("Search", "Search"),
-              tags$br(), 
-              h1("Overview"),
-              fluidRow(valueBoxOutput("sizeQuery", width = 3),
-                       valueBoxOutput("unmatchedProtein", width = 3),
-                       valueBoxOutput("nbNodesFinal", width = 3),
-                       valueBoxOutput("connection", width = 3))
-
+              actionButton("Search", "Search", icon = icon("upload"))
+              
+              
+      ),tabItem("overview",
+                h1("Overview"),
+                fluidRow(valueBoxOutput("sizeQuery", width = 3),
+                         valueBoxOutput("unmatchedProtein", width = 3),
+                         valueBoxOutput("nbNodesFinal", width = 3),
+                         valueBoxOutput("connection", width = 3)),
+                uiOutput("HistoValues"),
+                plotOutput("TopSelectedhist"),
+                plotOutput("igraph")
+                   
       ),
       tabItem("graph",
               fluidRow(
@@ -398,6 +456,7 @@ server <- function(input, output, session) {
       output$sidebar <- renderUI({
         sidebarMenu( id = "tabs",
                      menuItem("Import data", tabName = "import", icon = icon("file-import")),
+                     menuItem("Overview", tabName = "overview", icon = icon("file-import")),
                      menuItem("Graph", tabName = "graph", icon = icon("project-diagram") ),
                      menuItem("Enrichissement", tabName = "enrichissement", icon = icon("search")),
                      menuItem("Raw data", tabName = "rawdata", icon = icon("file")),
@@ -406,7 +465,13 @@ server <- function(input, output, session) {
         )
       })
       
-      updateTabItems(session, "tabs", selected = "description")
+      updateTabItems (session, "tabs", selected = "overview")
+      sendSweetAlert(
+        session = session,
+        title = "Ready to explore !",
+        text = "Data are imported !", 
+        type = "success"
+      )
       shinyjs::runjs("window.scrollTo(0, 0)")
       
     } else {
@@ -420,8 +485,60 @@ server <- function(input, output, session) {
       updateTabItems(session, "tabs", selected = "import")
       shinyjs::runjs("window.scrollTo(0, 0)")
     }
+    
+    updateTextAreaInput(session, "protList", value = "")
+    updateSelectInput(session, "Species", selected = "")
+    
   })
   
+  observeEvent(input$dataInputType, {
+    if(input$dataInputType == "list"){
+      shinyjs::hide(id = "importFileDiv")
+      shinyjs::show(id = "protList")
+      
+    } else if (input$dataInputType == "file") {
+      shinyjs::show(id = "importFileDiv")
+      shinyjs::hide(id = "protList")
+    }
+  })
+  
+  
+  output$contents <-  renderDataTable({
+    
+    req(input$file)
+    
+    STRING$df <- read.csv(input$file$datapath,
+                   header = as.logical(input$header),
+                   sep = input$sep,
+                   quote = input$quote,
+                   nrows=5, stringsAsFactors = F
+    )
+    
+    STRING$df %>% dplyr::mutate_if(is.character, function(x){
+      inter = substr(x,start = 1, stop = 20)
+      inter[nchar(x)>20] = paste0(inter[nchar(x)>20], "[...]")
+      inter
+    })
+    
+  }, selection = 'none', options = list(scrollX = TRUE))
+  
+  
+  observeEvent(STRING$df, {
+    updateSelectInput(session, "protColumn", 
+                      choices =  setNames(colnames(STRING$df) , colnames(STRING$df)),
+                      selected = colnames(STRING$df)[1])
+    
+    updateSelectInput(session, "colCoExpression", 
+                      choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+  })
+  
+  observeEvent(input$protColumn, {
+    inter = setNames(colnames(STRING$df) , colnames(STRING$df))
+    inter = inter[- which(inter == input$protColumn)]
+    updateSelectInput(session, "colCoExpression", 
+                      choices = inter )
+  })
+
   #=============================================================================
   # About
   #=============================================================================
@@ -436,8 +553,42 @@ server <- function(input, output, session) {
   })
   
   
+  #=============================================================================
+  # Overview
+  #=============================================================================
+  output$TopSelectedhist <- renderPlot({
+    # hist of distances
+    hist(STRING$triangMatrix, breaks = 100, xlab = "Distance", main = "")
+    abline(v= STRING$seuil, col = "red", lty = 3)
+    legend("topright", lty = 3, legend = paste0("Top ",input$topSelected ,"%"), col = "red", box.lty = 0)
+  })
+  
+
+  output$igraph <- renderPlot({
+    g = graph_from_data_frame(STRING$lien, directed = FALSE)
+    V(g)$size = 0.5
+    l<- layout_nicely(g)
+    
+    plot(g,vertex.label=NA, main = "Test", 
+         layout = l, cex.main= 1.5, cex.lab=1.5, cex.axis=1.5)
+  })
   
   
+  output$HistoValues <- renderUI({
+    if(!is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
+      lapply(1:length(input$colCoExpression), function(i) {
+        box( 
+          title = input$colCoExpression[i], 
+          solidHeader = TRUE, collapsible = TRUE,collapsed = T,
+          uiOutput(paste0("Hist_",i))
+        )
+      })
+    } else {
+      NULL
+    }
+  })
+  
+
   #=============================================================================
   # Import
   #=============================================================================
@@ -449,7 +600,75 @@ server <- function(input, output, session) {
       
       incProgress(1/m, detail = "Initilization")
       
-      STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
+      
+      if(input$dataInputType == "list"){
+        STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
+      } else if(input$dataInputType == "file"){
+        STRING$importFile <- read.csv2(input$file$datapath,
+                                       header = as.logical(input$header),
+                                       sep = input$sep,
+                                       quote = input$quote, 
+                                       stringsAsFactors = F
+        )
+        
+        STRING$initProt = STRING$importFile[, input$protColumn]
+        
+        if(! is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
+          data = STRING$importFile
+          rownames(data) = data[, input$protColumn]
+          data = data[,  input$colCoExpression]
+          d = dist(data[,input$colCoExpression])
+          d = as.data.frame(as.matrix(d))
+          
+          # Get triangular matrix
+          triangMatrix = d[lower.tri(d, diag=FALSE)]
+          triangMatrix = sort(triangMatrix)
+          STRING$triangMatrix = triangMatrix
+          
+          #-------------------------------------------------------------------------------
+          # Definition of a threshold
+          #-------------------------------------------------------------------------------
+          
+          # Find top threshold
+          TopThreshold = round(input$topSelected * length(triangMatrix) / 100)
+          seuil = triangMatrix[TopThreshold]
+          STRING$seuil = seuil
+          
+          #-------------------------------------------------------------------------------
+          # Search for link between genes (if distance is lower than threshold)
+          #-------------------------------------------------------------------------------
+          
+          lien = cbind(from = rownames(d)[which(d < seuil, arr.ind=TRUE)[,1]], 
+                       to = colnames(d)[which(d < seuil, arr.ind=TRUE)[,2]])
+          
+          lien = t(apply(lien, 1, function(x){
+            sort(x)
+          }))
+          
+          lien = as.data.frame(lien) %>%
+            distinct()
+          
+          lien = lien[-which(lien[,1] == lien[,2]), ]
+          colnames(lien) = c("from", "to")
+          
+          STRING$lien = lien
+          
+          data = STRING$importFile
+          lapply(1:length(input$colCoExpression), function(i) {
+            output[[paste0("Hist_",i)]] <- renderGvis({
+              gvisHistogram(data.frame(Value = as.numeric(data[, input$colCoExpression[i]])), 
+                            chartid = paste0("Gvis_Hist_",i) ,
+                            options=list(
+                              colors="['#ff0000']",
+                              legend="{ position: 'none'}",
+                              title="Values",
+                              width='100%', height=360))
+              
+            })
+          })
+          
+        }
+      }
       
       if(length(STRING$initProt) > 500){
         
@@ -494,7 +713,7 @@ server <- function(input, output, session) {
         STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
                                            stringsAsFactors = F)
         
-        if(nrow(STRING$dataInteraction) > 1000){
+        if(nrow(STRING$dataInteraction) > 500){
           
           shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
           rvEnvent$search = F
@@ -514,7 +733,6 @@ server <- function(input, output, session) {
           
           request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
           request_url = paste0(request_url, parametersNetworks, collapse = "")
-          cat(request_url)
           STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
           
           #-------------------------------------------------------------------------------
@@ -591,13 +809,8 @@ server <- function(input, output, session) {
           
           rvEnvent$search = T
         }
-        
-        
       }
-      
     })
-    
-    
     
   })
   
@@ -678,7 +891,7 @@ server <- function(input, output, session) {
   # Link external databases
   #=============================================================================
   output$selected_var_refseq <- renderUI({
-  
+    
     
     if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
       if(length(STRING$refseq[,2]) != 1){
@@ -696,9 +909,9 @@ server <- function(input, output, session) {
     } else {
       NULL
     }
-
+    
   })
-
+  
   output$selected_var_KEGG <- renderUI({
     
     if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
@@ -740,9 +953,9 @@ server <- function(input, output, session) {
     }
     
   })
- 
+  
   output$selected_var_GeneCard<- renderUI({
-   
+    
     if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
       shinyjs::show(id = "selected_var_GeneCard")
       if(length(STRING$linkGeneCard[,2]) != 1){
@@ -829,7 +1042,7 @@ server <- function(input, output, session) {
       NULL
     }
   })
-
+  
   output$selected_var_SGD<- renderUI({
     
     if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
@@ -1399,7 +1612,7 @@ server <- function(input, output, session) {
                      gene = input$network_selected,
                      description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
                      species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected])
-                     )
+      )
       rmarkdown::render("report.Rmd", output_file = file,
                         params = params,
                         envir = new.env(parent = globalenv())
