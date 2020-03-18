@@ -187,7 +187,7 @@ ui <- dashboardPage(
               h4(class = "infoGene", "3- Select a limits"),
               helpText("Limits the number of interaction partners retrieved per protein (most confident interactions come first)"),
               numericInput(inputId = "limitsNodes", label = NULL, min = 1,
-                           value = 10, width = "500px"),
+                           value = 5, width = "500px"),
               
               actionButton("Search", "Search", icon = icon("upload"))
               
@@ -475,15 +475,6 @@ server <- function(input, output, session) {
         )
       })
       
-      updateTabItems (session, "tabs", selected = "overview")
-      sendSweetAlert(
-        session = session,
-        title = "Ready to explore !",
-        text = "Data are imported !", 
-        type = "success"
-      )
-      shinyjs::runjs("window.scrollTo(0, 0)")
-      
     } else {
       output$sidebar <- renderUI({
         sidebarMenu(id = "tabs",
@@ -505,13 +496,19 @@ server <- function(input, output, session) {
     if(input$dataInputType == "list"){
       shinyjs::hide(id = "importFileDiv")
       shinyjs::show(id = "protList")
+      updateNumericInput(session, "limitsNodes", value = 5)
       
     } else if (input$dataInputType == "file") {
       shinyjs::show(id = "importFileDiv")
+      shinyjs::hide(id = "colCoExpression")
+      shinyjs::hide(id = "contents")
+      shinyjs::hide(id = "protColumn")
       shinyjs::hide(id = "protList")
+      reset("file")
+      updateNumericInput(session, "limitsNodes", value = 1)
+      
     }
   })
-  
   
   output$contents <-  renderDataTable({
     
@@ -532,20 +529,30 @@ server <- function(input, output, session) {
     
   }, selection = 'none', options = list(scrollX = TRUE))
   
+  observeEvent(input$file,{
+    shinyjs::show(id = "colCoExpression")
+    shinyjs::show(id = "contents")
+    shinyjs::show(id = "protColumn")
+    
+    updateSelectizeInput(session, "colCoExpression", 
+                         selected = "" )
+  })
   
   observeEvent(STRING$df, {
-    updateSelectInput(session, "protColumn", 
-                      choices =  setNames(colnames(STRING$df) , colnames(STRING$df)),
-                      selected = colnames(STRING$df)[1])
-    
-    updateSelectInput(session, "colCoExpression", 
-                      choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+
+    updateSelectizeInput(session, "protColumn", 
+                        choices =  setNames(colnames(STRING$df) , colnames(STRING$df)),
+                        selected = colnames(STRING$df)[1])
+      
+    updateSelectizeInput(session, "colCoExpression", 
+                        choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+
   })
   
   observeEvent(input$protColumn, {
     inter = setNames(colnames(STRING$df) , colnames(STRING$df))
     inter = inter[- which(inter == input$protColumn)]
-    updateSelectInput(session, "colCoExpression", 
+    updateSelectizeInput(session, "colCoExpression", 
                       choices = inter )
   })
   
@@ -631,218 +638,237 @@ server <- function(input, output, session) {
   #=============================================================================
   
   observeEvent(input$Search, {
-    m = 8
     
-    withProgress(message = 'Extraction in progress', value = 0, {
-      
-      incProgress(1/m, detail = "Initilization")
-      
-      
-      if(input$dataInputType == "list"){
-        STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
-      } else if(input$dataInputType == "file"){
-        STRING$importFile <- read.csv2(input$file$datapath,
-                                       header = as.logical(input$header),
-                                       sep = input$sep,
-                                       quote = input$quote, 
-                                       stringsAsFactors = F
-        )
+    if(input$Species== ""){
+      shinyalert("Oops!", "You must select a species !", type = "error")
+    } else {
+      m = 8
+      rvEnvent$clean = F
+      withProgress(message = 'Extraction in progress', value = 0, {
         
-        STRING$initProt = STRING$importFile[, input$protColumn]
+        incProgress(1/m, detail = "Initilization")
         
-        if(! is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
+        
+        if(input$dataInputType == "list"){
+          STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
+        } else if(input$dataInputType == "file"){
+          STRING$importFile <- read.csv2(input$file$datapath,
+                                         header = as.logical(input$header),
+                                         sep = input$sep,
+                                         quote = input$quote, 
+                                         stringsAsFactors = F
+          )
           
-          updateSelectizeInput(session, "SelectHisto", 
-                               choices = input$colCoExpression, 
-                               selected = input$colCoExpression[1])
           
-          STRING$colCoExpression = input$colCoExpression
-          data = STRING$importFile
-          rownames(data) = data[, input$protColumn]
-          data = data[,  input$colCoExpression]
-          d = dist(data[,input$colCoExpression])
-          d = as.data.frame(as.matrix(d))
+          STRING$initProt = STRING$importFile[, input$protColumn]
           
-          # Get triangular matrix
-          triangMatrix = d[lower.tri(d, diag=FALSE)]
-          triangMatrix = sort(triangMatrix)
-          STRING$triangMatrix = triangMatrix
-          
-          #-------------------------------------------------------------------------------
-          # Definition of a threshold
-          #-------------------------------------------------------------------------------
-          
-          # Find top threshold
-          TopThreshold = round(input$topSelected * length(triangMatrix) / 100)
-          seuil = triangMatrix[TopThreshold]
-          STRING$seuil = seuil
-          
-          #-------------------------------------------------------------------------------
-          # Search for link between genes (if distance is lower than threshold)
-          #-------------------------------------------------------------------------------
-          
-          lien = cbind(from = rownames(d)[which(d < seuil, arr.ind=TRUE)[,1]], 
-                       to = colnames(d)[which(d < seuil, arr.ind=TRUE)[,2]])
-          
-          lien = t(apply(lien, 1, function(x){
-            sort(x)
-          }))
-          
-          lien = as.data.frame(lien) %>%
-            distinct()
-          
-          lien = lien[-which(lien[,1] == lien[,2]), ]
-          colnames(lien) = c("from", "to")
-          
-          STRING$lien = lien
-          
-          data = STRING$importFile
+          if(! is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
+            
+            updateSelectizeInput(session, "SelectHisto", 
+                                 choices = input$colCoExpression, 
+                                 selected = input$colCoExpression[1])
+            
+            STRING$colCoExpression = input$colCoExpression
+            data = STRING$importFile
+            rownames(data) = data[, input$protColumn]
+            data = data[,  input$colCoExpression]
+            d = dist(data[,input$colCoExpression])
+            d = as.data.frame(as.matrix(d))
+            
+            # Get triangular matrix
+            triangMatrix = d[lower.tri(d, diag=FALSE)]
+            triangMatrix = sort(triangMatrix)
+            STRING$triangMatrix = triangMatrix
+            
+            #-------------------------------------------------------------------------------
+            # Definition of a threshold
+            #-------------------------------------------------------------------------------
+            
+            # Find top threshold
+            TopThreshold = round(input$topSelected * length(triangMatrix) / 100)
+            seuil = triangMatrix[TopThreshold]
+            STRING$seuil = seuil
+            
+            #-------------------------------------------------------------------------------
+            # Search for link between genes (if distance is lower than threshold)
+            #-------------------------------------------------------------------------------
+            
+            lien = cbind(from = rownames(d)[which(d < seuil, arr.ind=TRUE)[,1]], 
+                         to = colnames(d)[which(d < seuil, arr.ind=TRUE)[,2]])
+            
+            lien = t(apply(lien, 1, function(x){
+              sort(x)
+            }))
+            
+            lien = as.data.frame(lien) %>%
+              distinct()
+            
+            lien = lien[-which(lien[,1] == lien[,2]), ]
+            colnames(lien) = c("from", "to")
+            
+            STRING$lien = lien
+            
+            data = STRING$importFile
+            
+          }
+          updateSelectInput(session, "dataInputType", selected = "list")
         }
-      }
-      
-      if(length(STRING$initProt) > 500){
         
-        shinyalert("Oops!", "The graph cannot contain more than 500 nodes. Reduce the list to be searched", type = "error")
-        rvEnvent$search = F
-        
-      } else {
-        STRING$ourSpecies = input$Species
-        
-        STRING$associationProtGenes = setNames(rep(NA, length(STRING$initProt)), STRING$initProt)
-        
-        parameters = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
-                             "&species=",STRING$ourSpecies,
-                             collapse = "")
-        
-        #-------------------------------------------------------------------------------
-        # Association prot to gene par STRING
-        #-------------------------------------------------------------------------------
-        incProgress(1/m, detail = "Protein to gene")
-        method = "get_string_ids"
-        parametersInfo = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
-                                 "&species=",STRING$ourSpecies,
-                                 collapse = "")
-        
-        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-        request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
-        STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
-        
-        STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
-        STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
-        STRING$associationProtGenes[is.na(STRING$associationProtGenes)] = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
-        
-        #-------------------------------------------------------------------------------
-        # Nouvelles connexions
-        #-------------------------------------------------------------------------------
-        incProgress(1/m, detail = "Add new proteins")
-        method = "interaction_partners"
-        parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
-        
-        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-        request_url = paste0(request_url, parametersGraph, collapse = "")
-        STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
-                                           stringsAsFactors = F)
-        
-        if(nrow(STRING$dataInteraction) > 500){
+        if(length(STRING$initProt) > 500){
           
-          shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
+          shinyalert("Oops!", "The graph cannot contain more than 500 nodes. Reduce the list to be searched", type = "error")
           rvEnvent$search = F
           
         } else {
-          #-------------------------------------------------------------------------------
-          # Connexions entre les nouvelles 
-          #-------------------------------------------------------------------------------
-          incProgress(1/m, detail = "Generate new interactions")
-          listProtInteraction = unique(c(STRING$dataInteraction[,"preferredName_A"], 
-                                         STRING$dataInteraction[,"preferredName_B"]))
-          method = "network"
-          parametersNetworks = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
-                                       "&species=",STRING$ourSpecies, "&add_nodes=0",
-                                       collapse = "")
+          STRING$ourSpecies = input$Species
           
+          STRING$associationProtGenes = setNames(rep(NA, length(STRING$initProt)), STRING$initProt)
           
-          request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-          request_url = paste0(request_url, parametersNetworks, collapse = "")
-          STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
+          parameters = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
+                               "&species=",STRING$ourSpecies,
+                               collapse = "")
           
           #-------------------------------------------------------------------------------
-          # Récupération de l'information pour les noeuds 
+          # Association prot to gene par STRING
           #-------------------------------------------------------------------------------
-          incProgress(1/m, detail = "Get information")
+          incProgress(1/m, detail = "Protein to gene")
           method = "get_string_ids"
-          parametersInfo = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+          parametersInfo = paste0( "identifiers=", paste0(STRING$initProt,collapse = "%0d"), 
                                    "&species=",STRING$ourSpecies,
                                    collapse = "")
           
           request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-          request_url = paste0(request_url, parametersInfo, collapse = "")
-          STRING$dataInfoAll = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
-          STRING$dataInfoAll = STRING$dataInfoAll %>% 
-            filter(preferredName %in% listProtInteraction)
+          request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
+          STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
           
-          #---------------------------------------------------------------------------
-          # Enrichissement
-          #---------------------------------------------------------------------------
-          incProgress(1/m, detail = "Calculate enrichissement")
-          method = "enrichment"
-          parametersEnrichment = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
-                                         "&species=",STRING$ourSpecies,
-                                         collapse = "")
+          STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
+          STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+          STRING$associationProtGenes[is.na(STRING$associationProtGenes)] = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+          
+          #-------------------------------------------------------------------------------
+          # Nouvelles connexions
+          #-------------------------------------------------------------------------------
+          incProgress(1/m, detail = "Add new proteins")
+          method = "interaction_partners"
+          parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
           
           request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-          request_url = paste0(request_url, parametersEnrichment, collapse = "")
-          STRING$dataEnrichissement = read.csv2(request_url, sep ="\t", header = T)
+          request_url = paste0(request_url, parametersGraph, collapse = "")
+          STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
+                                             stringsAsFactors = F)
           
-          #---------------------------------------------------------------------------
-          # Component
-          #---------------------------------------------------------------------------
-          incProgress(1/m, detail = "Component analysis")
-          
-          updateSelectInput(session, "colo",
-                            choices = c("None" = "None", 
-                                        setNames(as.character(unique(STRING$dataEnrichissement$category)), 
-                                                 as.character(unique(STRING$dataEnrichissement$category)))) ,
-                            selected = "None"
-          )
-          
-          #---------------------------------------------------------------------------
-          # Graph creation
-          #---------------------------------------------------------------------------
-          incProgress(1/m, detail = "Graph creation")
-          
-          if(nrow(STRING$dataInfoAll) !=0 ){
-            STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
-              mutate(annotation = preferredName,
-                     type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                      T ~ "circle"),
-                     color = "orange")
+          if(nrow(STRING$dataInteraction) > 500){
+            
+            shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
+            rvEnvent$search = F
             
           } else {
-            STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
-              mutate(annotation = preferredName,
-                     type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                      T ~ "circle")) %>%
-              mutate(color = "orange")
+            #-------------------------------------------------------------------------------
+            # Connexions entre les nouvelles 
+            #-------------------------------------------------------------------------------
+            incProgress(1/m, detail = "Generate new interactions")
+            listProtInteraction = unique(c(STRING$dataInteraction[,"preferredName_A"], 
+                                           STRING$dataInteraction[,"preferredName_B"]))
+            method = "network"
+            parametersNetworks = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                         "&species=",STRING$ourSpecies, "&add_nodes=0",
+                                         collapse = "")
+            
+            
+            request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+            request_url = paste0(request_url, parametersNetworks, collapse = "")
+            STRING$dataNetwork = read.csv2(request_url, sep ="\t", header = T)
+            
+            #-------------------------------------------------------------------------------
+            # Récupération de l'information pour les noeuds 
+            #-------------------------------------------------------------------------------
+            incProgress(1/m, detail = "Get information")
+            method = "get_string_ids"
+            parametersInfo = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                     "&species=",STRING$ourSpecies,
+                                     collapse = "")
+            
+            request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+            request_url = paste0(request_url, parametersInfo, collapse = "")
+            STRING$dataInfoAll = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
+            STRING$dataInfoAll = STRING$dataInfoAll %>% 
+              filter(preferredName %in% listProtInteraction)
+            
+            #---------------------------------------------------------------------------
+            # Enrichissement
+            #---------------------------------------------------------------------------
+            incProgress(1/m, detail = "Calculate enrichissement")
+            method = "enrichment"
+            parametersEnrichment = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
+                                           "&species=",STRING$ourSpecies,
+                                           collapse = "")
+            
+            request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+            request_url = paste0(request_url, parametersEnrichment, collapse = "")
+            STRING$dataEnrichissement = read.csv2(request_url, sep ="\t", header = T)
+            
+            #---------------------------------------------------------------------------
+            # Component
+            #---------------------------------------------------------------------------
+            incProgress(1/m, detail = "Component analysis")
+            
+            updateSelectInput(session, "colo",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(unique(STRING$dataEnrichissement$category)), 
+                                                   as.character(unique(STRING$dataEnrichissement$category)))) ,
+                              selected = "None"
+            )
+            
+            #---------------------------------------------------------------------------
+            # Graph creation
+            #---------------------------------------------------------------------------
+            incProgress(1/m, detail = "Graph creation")
+            
+            if(nrow(STRING$dataInfoAll) !=0 ){
+              STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
+                mutate(annotation = preferredName,
+                       type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
+                                        T ~ "circle"),
+                       color = "orange")
+              
+            } else {
+              STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
+                mutate(annotation = preferredName,
+                       type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
+                                        T ~ "circle")) %>%
+                mutate(color = "orange")
+            }
+            
+            colnames(STRING$nodes) = c("id", "label", "shape", "color")
+            
+            if(length(STRING$listUnknow) != 0){
+              STRING$nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
+                                                 "label"= STRING$listUnknow, 
+                                                 "shape" = "square", 
+                                                 "color" = "gray")) %>% distinct()
+            }
+            
+            STRING$links = STRING$dataNetwork[, c("preferredName_A", "preferredName_B")]
+            colnames(STRING$links) = c("from", "to")
+            
+            rvEnvent$search = T
+            
+            updateTabItems (session, "tabs", selected = "overview")
+            sendSweetAlert(
+              session = session,
+              title = "Ready to explore !",
+              text = "Data are imported !", 
+              type = "success"
+            )
+            shinyjs::runjs("window.scrollTo(0, 0)")
           }
-          
-          colnames(STRING$nodes) = c("id", "label", "shape", "color")
-          
-          if(length(STRING$listUnknow) != 0){
-            STRING$nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
-                                               "label"= STRING$listUnknow, 
-                                               "shape" = "square", 
-                                               "color" = "gray")) %>% distinct()
-          }
-          
-          STRING$links = STRING$dataNetwork[, c("preferredName_A", "preferredName_B")]
-          colnames(STRING$links) = c("from", "to")
-          
-          rvEnvent$search = T
         }
-      }
-    })
+      })
+    }
     
   })
+  
+
   
   observeEvent(input$colo, {
     if(!is.null(STRING$dataEnrichissement)){
@@ -1212,7 +1238,6 @@ server <- function(input, output, session) {
   })
   
   # PDB
-  
   observeEvent(input$PDBSelector_ID, {
     if(!is.null(input$PDBSelector_ID) && input$PDBSelector_ID != ""){
       js$Visu3D(input$PDBSelector_ID)
