@@ -209,7 +209,7 @@ ui <- dashboardPage(
                 fluidRow(box(width =6,title = 'Distance distribution', solidHeader =T,status = "primary", height = 507,
                              plotlyOutput("TopSelectedhist")
                 ),
-                box(width = 6,title = 'Value distribution', solidHeader =T, status = "primary", 
+                box(width = 6,title = 'Value distributions', solidHeader =T, status = "primary", 
                     plotlyOutput("HistoValues"),
                     tags$style("#divSelect .selectize-control {margin-bottom: 0px !important;}
                                 #divSelect .form-group {margin-bottom: 3px !important;margin-top: 3px !important;}"), 
@@ -291,7 +291,9 @@ ui <- dashboardPage(
                                  DTOutput('FA_SMART'),
                                  htmlOutput("FA_Pfam_title"),
                                  DTOutput('FA_Pfam'),
-                                 downloadButton("reportBTN", "Generate report")
+                                 HTML('<p class="infoGene">Generate a report</p>'),
+                                 helpText("All the information available on the page is gathered in an HTML page. This page is downloaded when you click on the button below."),
+                                 downloadButton("reportBTN", "Generate", icon = icon("file-export"))
                              ))
                 ))
       ),
@@ -955,8 +957,6 @@ server <- function(input, output, session) {
   # Link external databases
   #=============================================================================
   output$selected_var_refseq <- renderUI({
-    
-    
     if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
       if(length(STRING$refseq[,2]) != 1){
         HTML(paste0('<div class="dropdown">
@@ -977,7 +977,6 @@ server <- function(input, output, session) {
   })
   
   output$selected_var_KEGG <- renderUI({
-    
     if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
       if(length(STRING$linkKEGG[,2]) != 1){
         HTML(paste0('<div class="dropdown">
@@ -1021,7 +1020,6 @@ server <- function(input, output, session) {
   output$selected_var_GeneCard<- renderUI({
     
     if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
-      shinyjs::show(id = "selected_var_GeneCard")
       if(length(STRING$linkGeneCard[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1044,7 +1042,6 @@ server <- function(input, output, session) {
   output$selected_var_ensembl<- renderUI({
     
     if(!is.null(STRING$linkensembl) && length(STRING$linkensembl[,2]) != 0){
-      shinyjs::show(id = "selected_var_ensembl")
       if(length(STRING$linkensembl[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1064,9 +1061,7 @@ server <- function(input, output, session) {
   })
   
   output$selected_var_nextprot<- renderUI({
-    
     if(!is.null(STRING$linknextprot) && length(STRING$linknextprot[,2]) != 0){
-      shinyjs::show(id = "selected_var_nextprot")
       if(length(STRING$linknextprot[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1086,9 +1081,7 @@ server <- function(input, output, session) {
   })
   
   output$selected_var_CGD<- renderUI({
-    
     if(!is.null(STRING$linkCGD) && length(STRING$linkCGD[,2]) != 0){
-      shinyjs::show(id = "selected_var_CGD")
       if(length(STRING$linkCGD[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1110,7 +1103,6 @@ server <- function(input, output, session) {
   output$selected_var_SGD<- renderUI({
     
     if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
-      shinyjs::show(id = "selected_var_SGD")
       if(length(STRING$linkSGD[,2]) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1148,6 +1140,30 @@ server <- function(input, output, session) {
     STRING$linknextprot = NULL
     STRING$linkCGD = NULL
     STRING$linkSGD = NULL
+    
+    #---------------------------------------------------------------------------
+    # Show step 
+    #---------------------------------------------------------------------------
+    shinyjs::show(id = "FA_InterPro_title") 
+    shinyjs::show(id = "FA_InterPro") 
+    shinyjs::show(id = "FA_Keyword_title") 
+    shinyjs::show(id = "FA_Keyword")
+    shinyjs::show(id = "FA_RCTM_title")
+    shinyjs::show(id = "FA_RCTM") 
+    shinyjs::show(id = "FA_PMID_title") 
+    shinyjs::show(id = "FA_PMID")       
+    shinyjs::show(id = "FA_KEGG_title") 
+    shinyjs::show(id = "FA_KEGG") 
+    shinyjs::show(id = "FA_component_title") 
+    shinyjs::show(id = "FA_component") 
+    shinyjs::show(id = "FA_Function_title") 
+    shinyjs::show(id = "FA_Function")       
+    shinyjs::show(id = "FA_Process_title")
+    shinyjs::show(id = "FA_Process") 
+    shinyjs::show(id = "FA_Pfam_title") 
+    shinyjs::show(id = "FA_Pfam") 
+    shinyjs::show(id = "FA_SMART_title") 
+    shinyjs::show(id = "FA_SMART")
     
     #---------------------------------------------------------------------------
     # clean step 
@@ -1201,10 +1217,15 @@ server <- function(input, output, session) {
             STRING$linknextprot = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
             STRING$linkensembl = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
             STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_nextprot")  
+            shinyjs::show(id = "selected_var_ensembl")
+            shinyjs::show(id = "selected_var_GeneCard") 
           } else if (grepl('Candida ', speciesInter)){
             STRING$linkCGD = as.matrix(idMappingUniprot("ID", "CGD", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_CGD") 
           } else if (grepl('Saccharomyces cerevisiae', speciesInter)){
             STRING$linkSGD = as.matrix(idMappingUniprot("ID", "SGD_ID", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_SGD") 
           } else {
             STRING$linkGeneCard = NULL 
             STRING$linkensembl = NULL 
@@ -1212,7 +1233,7 @@ server <- function(input, output, session) {
             STRING$linkCGD = NULL
             STRING$linkSGD = NULL
           }
-          
+        
         } else {
           STRING$PDB = NULL
           updateSelectInput(session, "PDBSelector_ID",
@@ -1266,6 +1287,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
       HTML('<p class="infoGene">Cellular component</p>') 
     } else {
+      shinyjs::hide(id = "FA_component_title")
       NULL
     }
   })
@@ -1280,6 +1302,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_component")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1291,6 +1314,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
       HTML('<p class="infoGene">Molecular Function</p>') 
     } else {
+      shinyjs::hide(id = "FA_Function_title")
       NULL
     }
   })
@@ -1305,6 +1329,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_Function")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1316,6 +1341,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
       HTML('<p class="infoGene">Biological process</p>') 
     } else {
+      shinyjs::hide(id = "FA_Process_title")
       NULL
     }
   })
@@ -1330,6 +1356,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_Process")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1342,6 +1369,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0){
       HTML('<p class="infoGene">Pfam</p>')
     } else {
+      shinyjs::hide(id = "FA_Pfam_title")
       NULL
     }
   })
@@ -1356,6 +1384,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_Pfam")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1367,6 +1396,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
       HTML('<p class="infoGene">SMART</p>')
     } else {
+      shinyjs::hide(id = "FA_SMART_title")
       NULL
     }
   })
@@ -1381,6 +1411,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_SMART")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1388,10 +1419,11 @@ server <- function(input, output, session) {
   )
   
   # Reactome
-  output$FA_PMID_title <- renderText({ 
+  output$FA_RCTM_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
       HTML('<p class="infoGene">Reactome</p>')
     } else {
+      shinyjs::hide(id = "FA_RCTM_title")
       NULL
     }
   })
@@ -1406,6 +1438,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_RCTM")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1413,10 +1446,11 @@ server <- function(input, output, session) {
   )
   
   # PMID
-  output$FA_RCTM_title <- renderText({ 
+  output$FA_PMID_title <- renderText({ 
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
       HTML('<p class="infoGene">Pubmed</p>')
     } else {
+      shinyjs::hide(id = "FA_PMID_title")
       NULL
     }
   })
@@ -1431,6 +1465,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_PMID")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1442,6 +1477,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
       HTML('<p class="infoGene">KEGG</p>')
     } else {
+      shinyjs::hide(id = "FA_KEGG_title")
       NULL
     }
   })
@@ -1456,6 +1492,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_KEGG")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1467,6 +1504,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
       HTML('<p class="infoGene">InterPro</p>')
     } else {
+      shinyjs::hide(id = "FA_InterPro_title")
       NULL
     }
   })
@@ -1481,6 +1519,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_InterPro")
       NULL
     }
   }, selection = 'none', escape = FALSE,
@@ -1492,6 +1531,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
       HTML('<p class="infoGene">UniProt</p>')
     } else {
+      shinyjs::hide(id = "FA_Keyword_title")
       NULL
     }
   })
@@ -1506,6 +1546,7 @@ server <- function(input, output, session) {
                       'Description' = description
         ) 
     } else {
+      shinyjs::hide(id = "FA_Keyword")
       NULL
     }
   }, selection = 'none', escape = FALSE,
