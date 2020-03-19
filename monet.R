@@ -126,11 +126,19 @@ ui <- dashboardPage(
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
               h4(class = "infoGene","1- Select an import method"),
-              selectizeInput("dataInputType", NULL, 
-                             width = "500px", 
-                             choices = c("From a list (carriage return)" = "list", 
-                                         "From a file" = "file"), 
-                             selected = NULL, multiple = FALSE),
+              
+              pickerInput(
+                inputId = "dataInputType", 
+                width = "500px",
+                label = NULL, 
+                choices = c("From a list (carriage return)" = "list", 
+                            "From a file" = "file"), 
+                selected = NULL, multiple = FALSE, 
+                choicesOpt = list(
+                  icon = c("glyphicon-list", 
+                           "glyphicon-file")
+                  # glyphicon-align-justify
+                )),
               
               textAreaInput("protList", NULL, placeholder = "FTR1\nFET3\n...",
                             width = "500px", resize = "vertical", height = "200px"),
@@ -539,21 +547,21 @@ server <- function(input, output, session) {
   })
   
   observeEvent(STRING$df, {
-
+    
     updateSelectizeInput(session, "protColumn", 
-                        choices =  setNames(colnames(STRING$df) , colnames(STRING$df)),
-                        selected = colnames(STRING$df)[1])
-      
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)),
+                         selected = colnames(STRING$df)[1])
+    
     updateSelectizeInput(session, "colCoExpression", 
-                        choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
-
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
   })
   
   observeEvent(input$protColumn, {
     inter = setNames(colnames(STRING$df) , colnames(STRING$df))
     inter = inter[- which(inter == input$protColumn)]
     updateSelectizeInput(session, "colCoExpression", 
-                      choices = inter )
+                         choices = inter )
   })
   
   #=============================================================================
@@ -711,7 +719,7 @@ server <- function(input, output, session) {
             data = STRING$importFile
             
           }
-          updateSelectInput(session, "dataInputType", selected = "list")
+          updatePickerInput(session, "dataInputType", selected = "list")
         }
         
         if(length(STRING$initProt) > 500){
@@ -868,7 +876,7 @@ server <- function(input, output, session) {
     
   })
   
-
+  
   
   observeEvent(input$colo, {
     if(!is.null(STRING$dataEnrichissement)){
