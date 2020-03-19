@@ -206,16 +206,19 @@ ui <- dashboardPage(
                          valueBoxOutput("unmatchedProtein", width = 3),
                          valueBoxOutput("nbNodesFinal", width = 3),
                          valueBoxOutput("connection", width = 3)),
-                fluidRow(box(width =6,title = 'Distance distribution', solidHeader =T,status = "primary", height = 507,
-                             plotlyOutput("TopSelectedhist")
-                ),
-                box(width = 6,title = 'Value distributions', solidHeader =T, status = "primary", 
-                    plotlyOutput("HistoValues"),
-                    tags$style("#divSelect .selectize-control {margin-bottom: 0px !important;}
+                div(id="DistriDiv",
+                    fluidRow(box(width =6,title = 'Distance distribution', solidHeader =T,status = "primary", height = 507,
+                                 plotlyOutput("TopSelectedhist")
+                    ),
+                    box(width = 6,title = 'Value distributions', solidHeader =T, status = "primary", 
+                        plotlyOutput("HistoValues"),
+                        tags$style("#divSelect .selectize-control {margin-bottom: 0px !important;}
                                 #divSelect .form-group {margin-bottom: 3px !important;margin-top: 3px !important;}"), 
-                    div(id = "divSelect", selectizeInput(inputId = "SelectHisto", NULL, width = "100%", choices = NULL, 
-                                                         selected = NULL, multiple = FALSE) )
-                )
+                        div(id = "divSelect", selectizeInput(inputId = "SelectHisto", NULL, width = "100%", choices = NULL, 
+                                                             selected = NULL, multiple = FALSE) )
+                    )
+                    )
+                    
                 ),
                 plotOutput("igraph")
                 
@@ -516,7 +519,6 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "protList")
       reset("file")
       updateNumericInput(session, "limitsNodes", value = 1)
-      
     }
   })
   
@@ -661,7 +663,9 @@ server <- function(input, output, session) {
         
         if(input$dataInputType == "list"){
           STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
+          shinyjs::hide(id = "DistriDiv")
         } else if(input$dataInputType == "file"){
+          shinyjs::show(id = "DistriDiv")
           STRING$importFile <- read.csv2(input$file$datapath,
                                          header = as.logical(input$header),
                                          sep = input$sep,
@@ -1233,7 +1237,7 @@ server <- function(input, output, session) {
             STRING$linkCGD = NULL
             STRING$linkSGD = NULL
           }
-        
+          
         } else {
           STRING$PDB = NULL
           updateSelectInput(session, "PDBSelector_ID",
