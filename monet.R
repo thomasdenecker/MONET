@@ -73,52 +73,56 @@ jsCode <- '
 ################################################################################
 
 ui <- dashboardPagePlus(
-  dashboardHeaderPlus(title = img(src="img/logo_MONET_white.svg", height = "40px"), 
-                      dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
-                                   messageItem(
-                                     from = "Find our project?",
-                                     message = "Visit our Github!",
-                                     icon = icon("github", class = "fa"),
-                                     href = "https://github.com/thomasdenecker/MONET"
-                                   ),
-                                   messageItem(
-                                     from = "New User?",
-                                     message = "Read the docs!",
-                                     icon = icon("book"),
-                                     href = "https://github.com/thomasdenecker/MONET/wiki"
-                                   ),
-                                   messageItem(
-                                     from = "A bug with app?",
-                                     message = "Declare an issue!",
-                                     icon = icon("exclamation-triangle"),
-                                     href = "https://github.com/thomasdenecker/MONET/issues"
-                                   )
-                      ), 
-                      left_menu = tagList(dropdownBlock(
-                        id = "networkDropdown",
-                        title = HTML("<i class='fa fa-gear'></i>  Network settings"),
-                        selectInput("layout", "Layout :", selected = "layout_nicely", 
-                                    choices = c("Bipartite" = "layout_as_bipartite", 
-                                                "Star"  ="layout_as_star", 
-                                                "Tree" = "layout_as_tree", 
-                                                "Circle" = "layout_in_circle", 
-                                                "Nicely" = "layout_nicely", 
-                                                "Grid" = "layout_on_grid", 
-                                                "Sphere" = "layout_on_sphere", 
-                                                "Randomly" = "layout_randomly", 
-                                                "DH" = "layout_with_dh", 
-                                                "FR" = "layout_with_fr", 
-                                                "Gem" = "layout_with_gem", 
-                                                "Graphopt" = "layout_with_graphopt", 
-                                                "Kk" = "layout_with_kk", 
-                                                "Lgl" = "layout_with_lgl", 
-                                                "Mds" = "layout_with_mds", 
-                                                "Sugiyama" = "layout_with_sugiyama")),
-                        selectizeInput("colo","Enrichissement coloration", choices = NULL, 
-                                       selected = NULL, multiple = FALSE), 
-                        selectizeInput("coloL2",NULL, choices = NULL, 
-                                       selected = NULL, multiple = FALSE)
-                      ))
+  dashboardHeaderPlus(title = tagList(
+    span(class = "logo-lg", img(src="img/logo_MONET_white.svg", height = "40px") ), 
+    img(src = "img/icon_MONET_white.png")),
+    dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
+                 messageItem(
+                   from = "Find our project?",
+                   message = "Visit our Github!",
+                   icon = icon("github", class = "fa"),
+                   href = "https://github.com/thomasdenecker/MONET"
+                 ),
+                 messageItem(
+                   from = "New User?",
+                   message = "Read the docs!",
+                   icon = icon("book"),
+                   href = "https://github.com/thomasdenecker/MONET/wiki"
+                 ),
+                 messageItem(
+                   from = "A bug with app?",
+                   message = "Declare an issue!",
+                   icon = icon("exclamation-triangle"),
+                   href = "https://github.com/thomasdenecker/MONET/issues"
+                 )
+    ), 
+    left_menu = tagList(dropdownBlock(
+      id = "networkDropdown",
+      title = HTML("<i class='fa fa-gear'></i>  Network settings"),
+      numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
+                   max=50),
+      selectInput("layout", "Layout :", selected = "layout_nicely", 
+                  choices = c("Bipartite" = "layout_as_bipartite", 
+                              "Star"  ="layout_as_star", 
+                              "Tree" = "layout_as_tree", 
+                              "Circle" = "layout_in_circle", 
+                              "Nicely" = "layout_nicely", 
+                              "Grid" = "layout_on_grid", 
+                              "Sphere" = "layout_on_sphere", 
+                              "Randomly" = "layout_randomly", 
+                              "DH" = "layout_with_dh", 
+                              "FR" = "layout_with_fr", 
+                              "Gem" = "layout_with_gem", 
+                              "Graphopt" = "layout_with_graphopt", 
+                              "Kk" = "layout_with_kk", 
+                              "Lgl" = "layout_with_lgl", 
+                              "Mds" = "layout_with_mds", 
+                              "Sugiyama" = "layout_with_sugiyama")),
+      selectizeInput("colo","Enrichissement coloration", choices = NULL, 
+                     selected = NULL, multiple = FALSE), 
+      selectizeInput("coloL2",NULL, choices = NULL, 
+                     selected = NULL, multiple = FALSE)
+    ))
   ),
   dashboardSidebar(
     uiOutput('sidebar')
@@ -255,7 +259,7 @@ ui <- dashboardPagePlus(
       tabItem("graph",
               fluidRow(
                 column(6,div(id = "networkDiv", 
-                visNetworkOutput("network", height = "100%"))),
+                             visNetworkOutput("network", height = "100%"))),
                 column(6,div(id = "networkSidebar",
                              h3("Node information"), 
                              helpText("Click on node to have information"),
@@ -848,14 +852,14 @@ server <- function(input, output, session) {
               STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
                 mutate(annotation = preferredName,
                        type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                        T ~ "circle"),
+                                        T ~ "dot"),
                        color = "orange")
               
             } else {
               STRING$nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
                 mutate(annotation = preferredName,
                        type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                        T ~ "circle")) %>%
+                                        T ~ "dot")) %>%
                 mutate(color = "orange")
             }
             
@@ -927,7 +931,13 @@ server <- function(input, output, session) {
   )
   
   output$DT_Interaction = renderDT(
-    STRING$dataInteraction, options = list(lengthChange = FALSE)
+    if(!is.null(STRING$nodes)){
+      STRING$nodes
+    } else {
+      NULL
+    }
+    
+    # STRING$dataInteraction, options = list(lengthChange = FALSE)
   )
   
   #=============================================================================
@@ -938,6 +948,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$nodes)){
       STRING$network = visNetwork(as.data.frame(STRING$nodes), as.data.frame(STRING$links)) %>%
         visExport() %>%
+        visNodes(size = input$sizeNodes) %>%
         visOptions(nodesIdSelection = TRUE,
                    highlightNearest = TRUE) %>%
         visIgraphLayout(layout = input$layout, randomSeed = 123) %>%
