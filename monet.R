@@ -17,6 +17,7 @@ library(shiny)
 library(shinyjs)
 library(shinyalert)
 library(shinydashboard)
+library(shinydashboardPlus)
 library(shinyWidgets)
 library(shinycssloaders)
 library(DT)
@@ -71,28 +72,54 @@ jsCode <- '
 ###                                   UI                                     ###
 ################################################################################
 
-ui <- dashboardPage(
-  dashboardHeader(title = img(src="img/logo_MONET_white.svg", height = "40px"), 
-                  dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
-                               messageItem(
-                                 from = "Find our project?",
-                                 message = "Visit our Github!",
-                                 icon = icon("github", class = "fa"),
-                                 href = "https://github.com/thomasdenecker/MONET"
-                               ),
-                               messageItem(
-                                 from = "New User?",
-                                 message = "Read the docs!",
-                                 icon = icon("book"),
-                                 href = "https://github.com/thomasdenecker/MONET/wiki"
-                               ),
-                               messageItem(
-                                 from = "A bug with app?",
-                                 message = "Declare an issue!",
-                                 icon = icon("exclamation-triangle"),
-                                 href = "https://github.com/thomasdenecker/MONET/issues"
-                               )
-                  )),
+ui <- dashboardPagePlus(
+  dashboardHeaderPlus(title = img(src="img/logo_MONET_white.svg", height = "40px"), 
+                      dropdownMenu(icon = icon("question-circle"),badgeStatus =NULL,headerText = "Global information",
+                                   messageItem(
+                                     from = "Find our project?",
+                                     message = "Visit our Github!",
+                                     icon = icon("github", class = "fa"),
+                                     href = "https://github.com/thomasdenecker/MONET"
+                                   ),
+                                   messageItem(
+                                     from = "New User?",
+                                     message = "Read the docs!",
+                                     icon = icon("book"),
+                                     href = "https://github.com/thomasdenecker/MONET/wiki"
+                                   ),
+                                   messageItem(
+                                     from = "A bug with app?",
+                                     message = "Declare an issue!",
+                                     icon = icon("exclamation-triangle"),
+                                     href = "https://github.com/thomasdenecker/MONET/issues"
+                                   )
+                      ), 
+                      left_menu = tagList(dropdownBlock(
+                        id = "networkDropdown",
+                        title = HTML("<i class='fa fa-gear'></i>  Network settings"),
+                        selectInput("layout", "Layout :", selected = "layout_nicely", 
+                                    choices = c("Bipartite" = "layout_as_bipartite", 
+                                                "Star"  ="layout_as_star", 
+                                                "Tree" = "layout_as_tree", 
+                                                "Circle" = "layout_in_circle", 
+                                                "Nicely" = "layout_nicely", 
+                                                "Grid" = "layout_on_grid", 
+                                                "Sphere" = "layout_on_sphere", 
+                                                "Randomly" = "layout_randomly", 
+                                                "DH" = "layout_with_dh", 
+                                                "FR" = "layout_with_fr", 
+                                                "Gem" = "layout_with_gem", 
+                                                "Graphopt" = "layout_with_graphopt", 
+                                                "Kk" = "layout_with_kk", 
+                                                "Lgl" = "layout_with_lgl", 
+                                                "Mds" = "layout_with_mds", 
+                                                "Sugiyama" = "layout_with_sugiyama")),
+                        selectizeInput("colo","Enrichissement coloration", choices = NULL, 
+                                       selected = NULL, multiple = FALSE), 
+                        selectizeInput("coloL2",NULL, choices = NULL, 
+                                       selected = NULL, multiple = FALSE)
+                      ))
+  ),
   dashboardSidebar(
     uiOutput('sidebar')
   ),
@@ -103,6 +130,8 @@ ui <- dashboardPage(
     tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
     tags$head(tags$style(type = "text/css", "
                canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
+               #networkDropdown .label { display : none;}
+               #networkDropdown .menu { padding-inline-start:0px;}
                ")),
     tags$head(HTML('<link rel="stylesheet" type="text/css"
                                      href="style.css" />')), 
@@ -225,30 +254,9 @@ ui <- dashboardPage(
       ),
       tabItem("graph",
               fluidRow(
-                column(6,div(id = "networkDiv", visNetworkOutput("network", height = "100%"))),
+                column(6,div(id = "networkDiv", 
+                visNetworkOutput("network", height = "100%"))),
                 column(6,div(id = "networkSidebar",
-                             h3("Network style"),
-                             selectInput("layout", "Layout :", selected = "layout_nicely", 
-                                         choices = c("Bipartite" = "layout_as_bipartite", 
-                                                     "Star"  ="layout_as_star", 
-                                                     "Tree" = "layout_as_tree", 
-                                                     "Circle" = "layout_in_circle", 
-                                                     "Nicely" = "layout_nicely", 
-                                                     "Grid" = "layout_on_grid", 
-                                                     "Sphere" = "layout_on_sphere", 
-                                                     "Randomly" = "layout_randomly", 
-                                                     "DH" = "layout_with_dh", 
-                                                     "FR" = "layout_with_fr", 
-                                                     "Gem" = "layout_with_gem", 
-                                                     "Graphopt" = "layout_with_graphopt", 
-                                                     "Kk" = "layout_with_kk", 
-                                                     "Lgl" = "layout_with_lgl", 
-                                                     "Mds" = "layout_with_mds", 
-                                                     "Sugiyama" = "layout_with_sugiyama")),
-                             selectizeInput("colo","Enrichissement coloration", choices = NULL, 
-                                            selected = NULL, multiple = FALSE), 
-                             selectizeInput("coloL2",NULL, choices = NULL, 
-                                            selected = NULL, multiple = FALSE), 
                              h3("Node information"), 
                              helpText("Click on node to have information"),
                              div(id= "geneZone",
@@ -659,8 +667,6 @@ server <- function(input, output, session) {
       withProgress(message = 'Extraction in progress', value = 0, {
         
         incProgress(1/m, detail = "Initilization")
-        
-        
         if(input$dataInputType == "list"){
           STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
           shinyjs::hide(id = "DistriDiv")
