@@ -214,7 +214,8 @@ ui <- dashboardPagePlus(
                                  selected = NULL, multiple = T),
                   numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
                                value = 10, width = "500px"),
-                  
+                  selectizeInput("distance", "Co-expression calculation", choices = c("classic", "correlation"),
+                                 selected = "classic",  multiple =F)
               ),
               
               h4(class = "infoGene","2- Select a species"),
@@ -696,7 +697,13 @@ server <- function(input, output, session) {
             data = STRING$importFile
             rownames(data) = data[, input$protColumn]
             data = data[,  input$colCoExpression]
-            d = dist(data[,input$colCoExpression])
+            
+            if(input$distance == "classic"){
+              d = dist(data[,input$colCoExpression])
+            } else if(input$distance == "correlation") {
+              d = as.dist(1 - cor(t(data.matrix(data[,input$colCoExpression]))))
+            }
+            
             d = as.data.frame(as.matrix(d))
             
             # Get triangular matrix
