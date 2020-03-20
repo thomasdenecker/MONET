@@ -112,6 +112,7 @@ ui <- dashboardPagePlus(
       title = HTML("<i class='fa fa-circle'></i>  Node settings"),
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
+      colourInput("colNodes", NULL, "orange",allowTransparent = TRUE ), 
       selectizeInput("colo","Enrichissement coloration", choices = NULL, 
                      selected = NULL, multiple = FALSE), 
       selectizeInput("coloL2",NULL, choices = NULL, 
@@ -229,14 +230,17 @@ ui <- dashboardPagePlus(
                            h4("File preview"),
                            dataTableOutput(outputId = "contents"))
                   ),
-                  selectizeInput("protColumn", "Select the protein column", choices = NULL, 
+                  selectizeInput("protColumn", "Select the protein column", 
+                                 width = "500px", choices = NULL, 
                                  selected = NULL, multiple = FALSE),
                   
-                  selectizeInput("colCoExpression", "Select columns to calculate co-expression", choices = NULL, 
+                  selectizeInput("colCoExpression", "Select columns to calculate co-expression", 
+                                 width = "500px", choices = NULL, 
                                  selected = NULL, multiple = T),
                   numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
                                value = 10, width = "500px"),
-                  selectizeInput("distance", "Co-expression calculation", choices = c("classic", "correlation"),
+                  selectizeInput("distance", "Co-expression calculation", 
+                                 width = "500px", choices = c("classic", "correlation"),
                                  selected = "classic",  multiple =F)
               ),
               
@@ -887,13 +891,13 @@ server <- function(input, output, session) {
                   mutate(annotation = preferredName,
                          type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
                                           T ~ "dot"),
-                         color = "orange")
+                         color = input$colNodes)
               } else {
                 nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
                   mutate(annotation = preferredName,
                          type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
                                           T ~ "dot")) %>%
-                  mutate(color = "orange")
+                  mutate(color = input$colNodes)
               }
               
               colnames(nodes) = c("id", "label", "shape", "color")
@@ -973,7 +977,7 @@ server <- function(input, output, session) {
                 STRING$nodes =  cbind("id" = STRING$associationProtGenes[STRING$initProt], 
                                       "label"= STRING$initProt, 
                                       "shape" = "square", 
-                                      "color" = "orange")
+                                      "color" = input$colNodes)
                 lien = as.data.frame(lien, stringsAsFactors = F)
                 STRING$links = as.data.frame(cbind(from = STRING$associationProtGenes[lien[, 1]], 
                                                    to = STRING$associationProtGenes[lien[, 2]]), stringsAsFactors = F)
@@ -1013,12 +1017,17 @@ server <- function(input, output, session) {
     if(input$coloL2 != ""){
       inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
       inter = unlist(strsplit(as.character(inter), ","))
-      STRING$nodes$color = "orange"
+      STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      STRING$nodes$color = "orange"
+      STRING$nodes$color = input$colNodes
     }
   })
+  
+  observeEvent(input$colNodes, {
+    STRING$nodes$color = input$colNodes
+  }
+  ) 
   
   output$PI = renderDT(
     STRING$dataInfo, options = list(lengthChange = FALSE)
