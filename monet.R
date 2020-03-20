@@ -25,6 +25,7 @@ library(visNetwork)
 library(httr)
 library(plotly)
 library(reshape2)
+library(colourpicker)
 
 ################################################################################
 ###                                URL                                       ###
@@ -95,10 +96,31 @@ ui <- dashboardPagePlus(
                  )
     ), 
     left_menu = tagList(dropdownBlock(
-      id = "networkDropdown",
-      title = HTML("<i class='fa fa-gear'></i>  Network settings"),
+      id = "networkDropdown_edges", 
+      title = HTML("<i class='fa fa-arrows-alt-h'></i>  Edge settings"),
+      HTML("<label class='control-label'>Edge color</label>"),
+      HTML("<u><p>From STRING</p></u>"), 
+      colourInput("STRING_col", NULL, "blue",allowTransparent = TRUE ), 
+      HTML("<u><p>From co-expression</p></u>"), 
+      colourInput("CoExpress_col", NULL, "green"),
+      HTML("<u><p>From STRING and co-expression</p></u>"), 
+      colourInput("Both_col", NULL, "black")
+    ),
+    
+    dropdownBlock(
+      id = "networkDropdown_nodes",
+      title = HTML("<i class='fa fa-circle'></i>  Node settings"),
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
+      selectizeInput("colo","Enrichissement coloration", choices = NULL, 
+                     selected = NULL, multiple = FALSE), 
+      selectizeInput("coloL2",NULL, choices = NULL, 
+                     selected = NULL, multiple = FALSE)
+    ),
+    
+    dropdownBlock(
+      id = "networkDropdown_network",
+      title = HTML("<i class='fa fa-gear'></i>  Network settings"),
       selectInput("layout", "Layout :", selected = "layout_nicely", 
                   choices = c("Bipartite" = "layout_as_bipartite", 
                               "Star"  ="layout_as_star", 
@@ -115,12 +137,9 @@ ui <- dashboardPagePlus(
                               "Kk" = "layout_with_kk", 
                               "Lgl" = "layout_with_lgl", 
                               "Mds" = "layout_with_mds", 
-                              "Sugiyama" = "layout_with_sugiyama")),
-      selectizeInput("colo","Enrichissement coloration", choices = NULL, 
-                     selected = NULL, multiple = FALSE), 
-      selectizeInput("coloL2",NULL, choices = NULL, 
-                     selected = NULL, multiple = FALSE)
-    ))
+                              "Sugiyama" = "layout_with_sugiyama"))
+    )
+    )
   ),
   dashboardSidebar(
     uiOutput('sidebar')
@@ -132,8 +151,13 @@ ui <- dashboardPagePlus(
     tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
     tags$head(tags$style(type = "text/css", "
                canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
-               #networkDropdown .label { display : none;}
-               #networkDropdown .menu { padding-inline-start:0px;}
+               #networkDropdown_edges .label { display : none;}
+               #networkDropdown_nodes .label { display : none;}
+               #networkDropdown_network .label { display : none;}
+               
+               #networkDropdown_edges .menu { padding-inline-start:0px;}
+               #networkDropdown_nodes .menu { padding-inline-start:0px;}
+               #networkDropdown_network .menu { padding-inline-start:0px;}
                ")),
     tags$head(HTML('<link rel="stylesheet" type="text/css"
                                      href="style.css" />')), 
@@ -251,8 +275,7 @@ ui <- dashboardPagePlus(
                     )
                     )
                     
-                ),
-                plotOutput("igraph")
+                )
                 
       ),
       tabItem("graph",
@@ -644,18 +667,6 @@ server <- function(input, output, session) {
     
   })
   
-  output$igraph <- renderPlot({
-    g = graph_from_data_frame(STRING$lien, directed = FALSE)
-    V(g)$size = 0.5
-    l<- layout_nicely(g)
-    
-    plot(g,vertex.label=NA, main = "Test", 
-         layout = l, cex.main= 1.5, cex.lab=1.5, cex.axis=1.5)
-  })
-  
-  
-  
-  
   #=============================================================================
   # Import
   #=============================================================================
@@ -665,7 +676,7 @@ server <- function(input, output, session) {
     if (input$dataInputType == "list" && !is.null( input$protList) && length(unlist(strsplit(x =input$protList,split = '[ \r\n]' ))) == 0){
       shinyalert("Oops!", "The search list is empty!", type = "error")
       
-    } if (input$dataInputType == "list" && input$limitsNodes == 0){
+    } else if (input$dataInputType == "list" && input$limitsNodes == 0){
       shinyalert("Oops!", "The search list is empty!", type = "error")
       
     } else if (input$dataInputType == "file" && !is.null( input$file) && input$file$datapath == ""){
@@ -677,7 +688,7 @@ server <- function(input, output, session) {
     } else if (input$limitsNodes == 0  && length(input$colCoExpression) == 0){
       shinyalert("Oops!", "If you do not want to search for a link in STRING, 
                  you must fill in columns for a co-expression search. Otherwise, change the limit to a minimum of 1", type = "error")
-    
+      
     } else {
       m = 8
       rvEnvent$clean = F
@@ -696,7 +707,6 @@ server <- function(input, output, session) {
                                          quote = input$quote, 
                                          stringsAsFactors = F
           )
-          
           
           STRING$initProt = STRING$importFile[, input$protColumn]
           
@@ -803,7 +813,7 @@ server <- function(input, output, session) {
             STRING$dataInteraction = read.csv2(request_url, sep ="\t", header = T, 
                                                stringsAsFactors = F)
           }
-
+          
           if(input$limitsNodes != 0 && nrow(STRING$dataInteraction) > 500){
             
             shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
@@ -915,8 +925,8 @@ server <- function(input, output, session) {
               
               links = as.data.frame(links, stringsAsFactors = F) %>%
                 distinct()
-              links = cbind(links, "blue")
-              colnames(links) = c("from", "to", "color")
+              links = cbind(links, "blue", "STRING")
+              colnames(links) = c("from", "to", "color", "source") 
               
               if(exists("lien") && nrow(lien) != 0){
                 convertLink = NULL
@@ -929,8 +939,8 @@ server <- function(input, output, session) {
                   )
                   
                 }
-                convertLink = cbind(convertLink, "green")
-                colnames(convertLink) = c("from", "to", "color")
+                convertLink = cbind(convertLink, "green", "CoExpress")
+                colnames(convertLink) = c("from", "to", "color", "source")
                 links = rbind(links, convertLink)
               }
               
@@ -938,21 +948,28 @@ server <- function(input, output, session) {
                 distinct()
               
               linksPaste = as.character(setNames(paste0(links[,1], links[,2]),
-                                    paste0(links[,1], links[,2])))
+                                                 paste0(links[,1], links[,2])))
               namesDupli = as.character(linksPaste[duplicated(linksPaste)])
               posDuppli = as.numeric(which(linksPaste %in% namesDupli))
+              
+              # Change color
               colorLinks = as.character(links[,3])
               colorLinks[posDuppli] = "black"
               links[,3] = as.character(colorLinks)
-
+              
+              # Change source
+              sourcesLinks = as.character(links[,4])
+              sourcesLinks[posDuppli] = "Both"
+              links[,4] = as.character(sourcesLinks)
+              
               links = as.data.frame(links, stringsAsFactors = F) %>%
                 distinct()
               
               STRING$links = links
-
+              
             } else {
               if(exists("lien") && nrow(lien) != 0){
-
+                
                 STRING$nodes =  cbind("id" = STRING$associationProtGenes[STRING$initProt], 
                                       "label"= STRING$initProt, 
                                       "shape" = "square", 
@@ -980,96 +997,105 @@ server <- function(input, output, session) {
     }
     
   })
+  
+  
+  
+  observeEvent(input$colo, {
+    if(!is.null(STRING$dataEnrichissement)){
       
-      
-      
-      observeEvent(input$colo, {
-        if(!is.null(STRING$dataEnrichissement)){
-          
-          updateSelectInput(session, "coloL2",
-                            choices = STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description) , 
-          )
-        }
-      })
-      
-      observeEvent(input$coloL2, {
-        if(input$coloL2 != ""){
-          inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
-          inter = unlist(strsplit(as.character(inter), ","))
-          STRING$nodes$color = "orange"
-          STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
-        } else {
-          STRING$nodes$color = "orange"
-        }
-      })
-      
-      output$PI = renderDT(
-        STRING$dataInfo, options = list(lengthChange = FALSE)
+      updateSelectInput(session, "coloL2",
+                        choices = STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description) , 
       )
+    }
+  })
+  
+  observeEvent(input$coloL2, {
+    if(input$coloL2 != ""){
+      inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
+      inter = unlist(strsplit(as.character(inter), ","))
+      STRING$nodes$color = "orange"
+      STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
+    } else {
+      STRING$nodes$color = "orange"
+    }
+  })
+  
+  output$PI = renderDT(
+    STRING$dataInfo, options = list(lengthChange = FALSE)
+  )
+  
+  output$DT_enrichissement = renderDT(
+    STRING$dataEnrichissement, options = list(lengthChange = FALSE)
+  )
+  
+  output$DT_infoAll = renderDT(
+    STRING$dataInfoAll, options = list(lengthChange = FALSE)
+  )
+  
+  output$DT_network = renderDT(
+    STRING$dataNetwork, options = list(lengthChange = FALSE)
+  )
+  
+  output$DT_Interaction = renderDT(
+    if(!is.null(STRING$links)){
+      STRING$links
+    } else {
+      NULL
+    }
+    
+    # STRING$dataInteraction, options = list(lengthChange = FALSE)
+  )
+  
+  #=============================================================================
+  # Création du graphe 
+  #=============================================================================
+  
+  
+  output$network <- renderVisNetwork({
+    if(!is.null(STRING$nodes)){
       
-      output$DT_enrichissement = renderDT(
-        STRING$dataEnrichissement, options = list(lengthChange = FALSE)
-      )
+      STRING$links = STRING$links %>%
+        mutate(color = case_when(source == "STRING" ~ input$STRING_col,
+                                 source == "CoExpress" ~ input$CoExpress_col,
+                                 source == "Both" ~ input$Both_col,
+                                 T ~ "gray"
+        ))
       
-      output$DT_infoAll = renderDT(
-        STRING$dataInfoAll, options = list(lengthChange = FALSE)
-      )
+      STRING$network = visNetwork(as.data.frame(STRING$nodes), as.data.frame(STRING$links)) %>%
+        visExport() %>%
+        visNodes(size = input$sizeNodes) %>%
+        visOptions(nodesIdSelection = TRUE,
+                   highlightNearest = TRUE) %>%
+        visIgraphLayout(layout = input$layout, randomSeed = 123) %>%
+        visInteraction(navigationButtons = TRUE, 
+                       dragNodes = FALSE,
+                       dragView = FALSE, zoomView = FALSE)
       
-      output$DT_network = renderDT(
-        STRING$dataNetwork, options = list(lengthChange = FALSE)
-      )
-      
-      output$DT_Interaction = renderDT(
-        if(!is.null(STRING$links)){
-          STRING$links
-        } else {
-          NULL
-        }
-        
-        # STRING$dataInteraction, options = list(lengthChange = FALSE)
-      )
-      
-      #=============================================================================
-      # Création du graphe 
-      #=============================================================================
-      
-      output$network <- renderVisNetwork({
-        if(!is.null(STRING$nodes)){
-          STRING$network = visNetwork(as.data.frame(STRING$nodes), as.data.frame(STRING$links)) %>%
-            visExport() %>%
-            visNodes(size = input$sizeNodes) %>%
-            visOptions(nodesIdSelection = TRUE,
-                       highlightNearest = TRUE) %>%
-            visIgraphLayout(layout = input$layout, randomSeed = 123) %>%
-            visInteraction(navigationButtons = TRUE, 
-                           dragNodes = FALSE,
-                           dragView = FALSE, zoomView = FALSE)
-          
-          STRING$network
-        } else {
-          NULL
-        }
-        
-      })
-      
-      output$selected_var_gene <- renderUI({
-        HTML(paste("<b>Gene name </b>:", input$network_selected))
-      })
-      
-      output$selected_var_description <- renderText({ 
-        HTML(paste("<b>Description </b>:", unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected])))
-      })
-      
-      output$selected_var_species <- renderText({ 
-        HTML(paste("<b>Species </b>:<i>", unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]), "</i>"))
-      })
-      #=============================================================================
-      # Link external databases
-      #=============================================================================
-      output$selected_var_refseq <- renderUI({
-        if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
-          if(length(STRING$refseq[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      STRING$network
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_gene <- renderUI({
+    HTML(paste("<b>Gene name </b>:", input$network_selected))
+  })
+  
+  output$selected_var_description <- renderText({ 
+    HTML(paste("<b>Description </b>:", unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected])))
+  })
+  
+  output$selected_var_species <- renderText({ 
+    HTML(paste("<b>Species </b>:<i>", unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]), "</i>"))
+  })
+  #=============================================================================
+  # Link external databases
+  #=============================================================================
+  output$selected_var_refseq <- renderUI({
+    if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
+      if(length(STRING$refseq[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/refseq_logo_small.png" height="20px">
         </button>
@@ -1077,19 +1103,19 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.ncbi.nlm.nih.gov/protein/',unique(STRING$refseq[,2]),'" target="_blank">',unique(STRING$refseq[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          NULL
-        }
-        
-      })
-      
-      output$selected_var_KEGG <- renderUI({
-        if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
-          if(length(STRING$linkKEGG[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_KEGG <- renderUI({
+    if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
+      if(length(STRING$linkKEGG[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/kegg_logo_small.png" height="20px">
         </button>
@@ -1097,20 +1123,20 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank">',unique(STRING$linkKEGG[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          NULL
-        }
-        
-      })
-      
-      output$selected_var_uniprot<- renderUI({
-        
-        if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0){
-          if(length(STRING$UniprotID) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_uniprot<- renderUI({
+    
+    if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0){
+      if(length(STRING$UniprotID) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/uniprot_logo_small.png" height="20px">
         </button>
@@ -1118,20 +1144,20 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank">',unique(STRING$UniprotID),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          NULL
-        }
-        
-      })
-      
-      output$selected_var_GeneCard<- renderUI({
-        
-        if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
-          if(length(STRING$linkGeneCard[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      NULL
+    }
+    
+  })
+  
+  output$selected_var_GeneCard<- renderUI({
+    
+    if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
+      if(length(STRING$linkGeneCard[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/genecards_logo_small.png" height="20px">
         </button>
@@ -1139,21 +1165,21 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank">',unique(STRING$linkGeneCard[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          shinyjs::hide(id = "selected_var_GeneCard")
-          NULL
-          
-        }
-      })
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_GeneCard")
+      NULL
       
-      output$selected_var_ensembl<- renderUI({
-        
-        if(!is.null(STRING$linkensembl) && length(STRING$linkensembl[,2]) != 0){
-          if(length(STRING$linkensembl[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+    }
+  })
+  
+  output$selected_var_ensembl<- renderUI({
+    
+    if(!is.null(STRING$linkensembl) && length(STRING$linkensembl[,2]) != 0){
+      if(length(STRING$linkensembl[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/ensembl_logo_small.png" height="20px">
         </button>
@@ -1161,19 +1187,19 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank">',unique(STRING$linkensembl[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank"><img src="img/ensembl_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          shinyjs::hide(id = "selected_var_ensembl")
-          NULL
-        }
-      })
-      
-      output$selected_var_nextprot<- renderUI({
-        if(!is.null(STRING$linknextprot) && length(STRING$linknextprot[,2]) != 0){
-          if(length(STRING$linknextprot[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank"><img src="img/ensembl_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_ensembl")
+      NULL
+    }
+  })
+  
+  output$selected_var_nextprot<- renderUI({
+    if(!is.null(STRING$linknextprot) && length(STRING$linknextprot[,2]) != 0){
+      if(length(STRING$linknextprot[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/nextprot_logo_small.png" height="20px">
         </button>
@@ -1181,19 +1207,19 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/',unique(STRING$linknextprot[,2]),'/" target="_blank">',unique(STRING$linknextprot[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/NX_P06493/',unique(STRING$linknextprot[,2]),'/" target="_blank"><img src="img/nextprot_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          shinyjs::hide(id = "selected_var_nextprot")
-          NULL
-        }
-      })
-      
-      output$selected_var_CGD<- renderUI({
-        if(!is.null(STRING$linkCGD) && length(STRING$linkCGD[,2]) != 0){
-          if(length(STRING$linkCGD[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/NX_P06493/',unique(STRING$linknextprot[,2]),'/" target="_blank"><img src="img/nextprot_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_nextprot")
+      NULL
+    }
+  })
+  
+  output$selected_var_CGD<- renderUI({
+    if(!is.null(STRING$linkCGD) && length(STRING$linkCGD[,2]) != 0){
+      if(length(STRING$linkCGD[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/CGD_logo_small.png" height="20px">
         </button>
@@ -1201,20 +1227,20 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank">',unique(STRING$linkCGD[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank"><img src="img/CGD_logo_small.png" height="20px"></a>'))
-          }
-        } else {
-          shinyjs::hide(id = "selected_var_CGD")
-          NULL
-        }
-      })
-      
-      output$selected_var_SGD<- renderUI({
-        
-        if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
-          if(length(STRING$linkSGD[,2]) != 1){
-            HTML(paste0('<div class="dropdown">
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank"><img src="img/CGD_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_CGD")
+      NULL
+    }
+  })
+  
+  output$selected_var_SGD<- renderUI({
+    
+    if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
+      if(length(STRING$linkSGD[,2]) != 1){
+        HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <img src="img/SGD_logo_small.png" height="20px">
         </button>
@@ -1222,619 +1248,619 @@ server <- function(input, output, session) {
         ',paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank">',unique(STRING$linkSGD[,2]),'</a>', collapse="<br>"),'
         </div>
       </div>', collapse=""))
-          }else {
-            HTML(paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank"><img src="img/SGD_logo_small.png" height="20px"></a>'))
-          }
+      }else {
+        HTML(paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank"><img src="img/SGD_logo_small.png" height="20px"></a>'))
+      }
+    } else {
+      shinyjs::hide(id = "selected_var_SGD")
+      NULL
+    }
+  })
+  
+  
+  #=============================================================================
+  # Gene selected Information
+  #=============================================================================
+  
+  # Get information
+  observeEvent(input$network_selected, {
+    #---------------------------------------------------------------------------
+    # Clean step 
+    #---------------------------------------------------------------------------
+    
+    STRING$refseq = NULL 
+    STRING$linkKEGG = NULL 
+    STRING$UniprotID = NULL 
+    STRING$linkGeneCard = NULL 
+    STRING$linkensembl = NULL 
+    STRING$linknextprot = NULL
+    STRING$linkCGD = NULL
+    STRING$linkSGD = NULL
+    
+    #---------------------------------------------------------------------------
+    # Show step 
+    #---------------------------------------------------------------------------
+    shinyjs::show(id = "FA_InterPro_title") 
+    shinyjs::show(id = "FA_InterPro") 
+    shinyjs::show(id = "FA_Keyword_title") 
+    shinyjs::show(id = "FA_Keyword")
+    shinyjs::show(id = "FA_RCTM_title")
+    shinyjs::show(id = "FA_RCTM") 
+    shinyjs::show(id = "FA_PMID_title") 
+    shinyjs::show(id = "FA_PMID")       
+    shinyjs::show(id = "FA_KEGG_title") 
+    shinyjs::show(id = "FA_KEGG") 
+    shinyjs::show(id = "FA_component_title") 
+    shinyjs::show(id = "FA_component") 
+    shinyjs::show(id = "FA_Function_title") 
+    shinyjs::show(id = "FA_Function")       
+    shinyjs::show(id = "FA_Process_title")
+    shinyjs::show(id = "FA_Process") 
+    shinyjs::show(id = "FA_Pfam_title") 
+    shinyjs::show(id = "FA_Pfam") 
+    shinyjs::show(id = "FA_SMART_title") 
+    shinyjs::show(id = "FA_SMART")
+    
+    #---------------------------------------------------------------------------
+    # clean step 
+    #---------------------------------------------------------------------------
+    
+    if(input$network_selected != ""){
+      STRING$date = format(Sys.time(), "%Y_%m_%d__%H_%M_%S")
+      m = 4
+      withProgress(message = 'Extraction in progress', value = 0, {
+        
+        incProgress(1/m, detail = "Functionnal annotation")
+        method = "functional_annotation"
+        parametersEnrichment = paste0( "identifiers=", input$network_selected, 
+                                       "&species=",STRING$ourSpecies,
+                                       collapse = "")
+        
+        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+        request_url = paste0(request_url, parametersEnrichment, collapse = "")
+        STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
+        
+        incProgress(1/m, detail = "Print zone")
+        if(!is.null(STRING$annotation) && nrow(STRING$annotation) != 0){
+          shinyjs::show(id = "geneZone")
         } else {
-          shinyjs::hide(id = "selected_var_SGD")
-          NULL
+          shinyjs::hide(id = "geneZone")
         }
-      })
-      
-      
-      #=============================================================================
-      # Gene selected Information
-      #=============================================================================
-      
-      # Get information
-      observeEvent(input$network_selected, {
-        #---------------------------------------------------------------------------
-        # Clean step 
-        #---------------------------------------------------------------------------
         
-        STRING$refseq = NULL 
-        STRING$linkKEGG = NULL 
-        STRING$UniprotID = NULL 
-        STRING$linkGeneCard = NULL 
-        STRING$linkensembl = NULL 
-        STRING$linknextprot = NULL
-        STRING$linkCGD = NULL
-        STRING$linkSGD = NULL
+        incProgress(1/m, detail = "Get Uniprot ID")
         
-        #---------------------------------------------------------------------------
-        # Show step 
-        #---------------------------------------------------------------------------
-        shinyjs::show(id = "FA_InterPro_title") 
-        shinyjs::show(id = "FA_InterPro") 
-        shinyjs::show(id = "FA_Keyword_title") 
-        shinyjs::show(id = "FA_Keyword")
-        shinyjs::show(id = "FA_RCTM_title")
-        shinyjs::show(id = "FA_RCTM") 
-        shinyjs::show(id = "FA_PMID_title") 
-        shinyjs::show(id = "FA_PMID")       
-        shinyjs::show(id = "FA_KEGG_title") 
-        shinyjs::show(id = "FA_KEGG") 
-        shinyjs::show(id = "FA_component_title") 
-        shinyjs::show(id = "FA_component") 
-        shinyjs::show(id = "FA_Function_title") 
-        shinyjs::show(id = "FA_Function")       
-        shinyjs::show(id = "FA_Process_title")
-        shinyjs::show(id = "FA_Process") 
-        shinyjs::show(id = "FA_Pfam_title") 
-        shinyjs::show(id = "FA_Pfam") 
-        shinyjs::show(id = "FA_SMART_title") 
-        shinyjs::show(id = "FA_SMART")
+        STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
+        STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
+        STRING$UniprotID = as.character(STRING$UniprotID[1,2])
         
-        #---------------------------------------------------------------------------
-        # clean step 
-        #---------------------------------------------------------------------------
-        
-        if(input$network_selected != ""){
-          STRING$date = format(Sys.time(), "%Y_%m_%d__%H_%M_%S")
-          m = 4
-          withProgress(message = 'Extraction in progress', value = 0, {
-            
-            incProgress(1/m, detail = "Functionnal annotation")
-            method = "functional_annotation"
-            parametersEnrichment = paste0( "identifiers=", input$network_selected, 
-                                           "&species=",STRING$ourSpecies,
-                                           collapse = "")
-            
-            request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-            request_url = paste0(request_url, parametersEnrichment, collapse = "")
-            STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
-            
-            incProgress(1/m, detail = "Print zone")
-            if(!is.null(STRING$annotation) && nrow(STRING$annotation) != 0){
-              shinyjs::show(id = "geneZone")
-            } else {
-              shinyjs::hide(id = "geneZone")
+        incProgress(1/m, detail = "Get structure files")
+        if(!is.na(STRING$UniprotID)){
+          STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
+          final = NULL
+          for(i in STRING$PDB[,2]){
+            inter = read.csv(paste0("http://www.rcsb.org/pdb/rest/customReport.csv?pdbids=",i,"&reportName=StructureSummary&service=wsfile&format=csv"))
+            if(nrow(inter) != 0){
+              final = c(final, i)
             }
-            
-            incProgress(1/m, detail = "Get Uniprot ID")
-            
-            STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
-            STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
-            STRING$UniprotID = as.character(STRING$UniprotID[1,2])
-            
-            incProgress(1/m, detail = "Get structure files")
-            if(!is.na(STRING$UniprotID)){
-              STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
-              final = NULL
-              for(i in STRING$PDB[,2]){
-                inter = read.csv(paste0("http://www.rcsb.org/pdb/rest/customReport.csv?pdbids=",i,"&reportName=StructureSummary&service=wsfile&format=csv"))
-                if(nrow(inter) != 0){
-                  final = c(final, i)
-                }
-              }
-              STRING$PDB = final
-              
-              STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
-              STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
-              
-              speciesInter = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]) 
-              
-              if(speciesInter == "Homo sapiens"){
-                STRING$linknextprot = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
-                STRING$linkensembl = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
-                STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
-                shinyjs::show(id = "selected_var_nextprot")  
-                shinyjs::show(id = "selected_var_ensembl")
-                shinyjs::show(id = "selected_var_GeneCard") 
-              } else if (grepl('Candida ', speciesInter)){
-                STRING$linkCGD = as.matrix(idMappingUniprot("ID", "CGD", unique(STRING$UniprotID), "tab"))
-                shinyjs::show(id = "selected_var_CGD") 
-              } else if (grepl('Saccharomyces cerevisiae', speciesInter)){
-                STRING$linkSGD = as.matrix(idMappingUniprot("ID", "SGD_ID", unique(STRING$UniprotID), "tab"))
-                shinyjs::show(id = "selected_var_SGD") 
-              } else {
-                STRING$linkGeneCard = NULL 
-                STRING$linkensembl = NULL 
-                STRING$linknextprot = NULL
-                STRING$linkCGD = NULL
-                STRING$linkSGD = NULL
-              }
-              
-            } else {
-              STRING$PDB = NULL
-              updateSelectInput(session, "PDBSelector_ID",
-                                choices = NULL)
-            }
-            
-          })
+          }
+          STRING$PDB = final
+          
+          STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
+          STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
+          
+          speciesInter = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]) 
+          
+          if(speciesInter == "Homo sapiens"){
+            STRING$linknextprot = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            STRING$linkensembl = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            STRING$linkGeneCard = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_nextprot")  
+            shinyjs::show(id = "selected_var_ensembl")
+            shinyjs::show(id = "selected_var_GeneCard") 
+          } else if (grepl('Candida ', speciesInter)){
+            STRING$linkCGD = as.matrix(idMappingUniprot("ID", "CGD", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_CGD") 
+          } else if (grepl('Saccharomyces cerevisiae', speciesInter)){
+            STRING$linkSGD = as.matrix(idMappingUniprot("ID", "SGD_ID", unique(STRING$UniprotID), "tab"))
+            shinyjs::show(id = "selected_var_SGD") 
+          } else {
+            STRING$linkGeneCard = NULL 
+            STRING$linkensembl = NULL 
+            STRING$linknextprot = NULL
+            STRING$linkCGD = NULL
+            STRING$linkSGD = NULL
+          }
           
         } else {
-          STRING$annotation = NULL
           STRING$PDB = NULL
-          shinyjs::hide(id = "geneZone")
-          shinyjs::hide(id = "PDBDIV")
-          updateSelectInput(session, "PDBSelector_ID",
-                            choices = "")
-        }
-        
-      })
-      
-      observeEvent(STRING$PDB, {
-        if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
-          updateSelectInput(session, "PDBSelector_ID",
-                            choices = setNames(as.character(STRING$PDB),
-                                               as.character(STRING$PDB)))
-          shinyjs::show(id = "PDBDIV")
-        } else {
           updateSelectInput(session, "PDBSelector_ID",
                             choices = NULL)
-          shinyjs::hide(id = "PDBDIV")
-        }
-      })
-      
-      # PDB
-      observeEvent(input$PDBSelector_ID, {
-        if(!is.null(input$PDBSelector_ID) && input$PDBSelector_ID != ""){
-          js$Visu3D(input$PDBSelector_ID)
-        } 
-        
-      })
-      
-      output$PDB_title <- renderText({ 
-        if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
-          HTML('<p class="infoGene">PDB</p>') 
-        } else {
-          NULL
-        }
-      })
-      
-      # Go terms : Component
-      output$FA_component_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
-          HTML('<p class="infoGene">Cellular component</p>') 
-        } else {
-          shinyjs::hide(id = "FA_component_title")
-          NULL
-        }
-      })
-      
-      output$FA_component = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
-          STRING$annotation %>% filter(category == "Component") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_component")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # Go terms : Function
-      output$FA_Function_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
-          HTML('<p class="infoGene">Molecular Function</p>') 
-        } else {
-          shinyjs::hide(id = "FA_Function_title")
-          NULL
-        }
-      })
-      
-      output$FA_Function = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
-          STRING$annotation %>% filter(category == "Function") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_Function")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # Go terms : Process
-      output$FA_Process_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
-          HTML('<p class="infoGene">Biological process</p>') 
-        } else {
-          shinyjs::hide(id = "FA_Process_title")
-          NULL
-        }
-      })
-      
-      output$FA_Process = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
-          STRING$annotation %>% filter(category == "Process") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_Process")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      ) 
-      
-      
-      # Pfam
-      output$FA_Pfam_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0){
-          HTML('<p class="infoGene">Pfam</p>')
-        } else {
-          shinyjs::hide(id = "FA_Pfam_title")
-          NULL
-        }
-      })
-      
-      output$FA_Pfam = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0 ){
-          STRING$annotation %>% filter(category == "Pfam") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="http://pfam.xfam.org/family/',term,'" target="_blank">',term,"</a>")) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_Pfam")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # SMART
-      output$FA_SMART_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
-          HTML('<p class="infoGene">SMART</p>')
-        } else {
-          shinyjs::hide(id = "FA_SMART_title")
-          NULL
-        }
-      })
-      
-      output$FA_SMART = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
-          STRING$annotation %>% filter(category == "SMART") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="http://smart.embl.de/smart/do_annotation.pl?DOMAIN=',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_SMART")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # Reactome
-      output$FA_RCTM_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
-          HTML('<p class="infoGene">Reactome</p>')
-        } else {
-          shinyjs::hide(id = "FA_RCTM_title")
-          NULL
-        }
-      })
-      
-      output$FA_RCTM = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
-          STRING$annotation %>% filter(category == "RCTM") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="https://reactome.org/content/detail/R-',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_RCTM")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # PMID
-      output$FA_PMID_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
-          HTML('<p class="infoGene">Pubmed</p>')
-        } else {
-          shinyjs::hide(id = "FA_PMID_title")
-          NULL
-        }
-      })
-      
-      output$FA_PMID = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
-          STRING$annotation %>% filter(category == "PMID") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_PMID")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # KEGG
-      output$FA_KEGG_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
-          HTML('<p class="infoGene">KEGG</p>')
-        } else {
-          shinyjs::hide(id = "FA_KEGG_title")
-          NULL
-        }
-      })
-      
-      output$FA_KEGG = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
-          STRING$annotation %>% filter(category == "KEGG") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>")) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_KEGG")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # InterPro
-      output$FA_InterPro_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
-          HTML('<p class="infoGene">InterPro</p>')
-        } else {
-          shinyjs::hide(id = "FA_InterPro_title")
-          NULL
-        }
-      })
-      
-      output$FA_InterPro = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
-          STRING$annotation %>% filter(category == "InterPro") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>")) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_InterPro")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      # Keyword
-      output$FA_Keyword_title <- renderText({ 
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
-          HTML('<p class="infoGene">UniProt</p>')
-        } else {
-          shinyjs::hide(id = "FA_Keyword_title")
-          NULL
-        }
-      })
-      
-      output$FA_Keyword = renderDT({
-        if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
-          STRING$annotation %>% filter(category == "Keyword") %>% 
-            mutate(term =  gsub("\\.", ":", term),
-                   term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" )) %>%
-            dplyr::select(term, description) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description
-            ) 
-        } else {
-          shinyjs::hide(id = "FA_Keyword")
-          NULL
-        }
-      }, selection = 'none', escape = FALSE,
-      options = list(pageLength = 5, scrollX = TRUE)
-      )
-      
-      #-----------------------------------------------------------------------------
-      # Enrichissement
-      #-----------------------------------------------------------------------------
-      
-      output$CC = renderDataTable(
-        STRING$dataEnrichissement %>% filter(category == "Component") %>% 
-          mutate(term =  gsub("\\.", ":", term),
-                 term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ), 
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE)
-      )
-      
-      output$BP = renderDataTable(
-        STRING$dataEnrichissement %>% filter(category == "Process") %>% 
-          mutate(term =  gsub("\\.", ":", term),
-                 term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ), 
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE)
-      )
-      
-      output$MF = renderDataTable(
-        STRING$dataEnrichissement %>% filter(category == "Function") %>% 
-          mutate(term =  gsub("\\.", ":", term),
-                 term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ), 
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE)
-      )
-      
-      output$INTERPRO = DT::renderDataTable({
-        if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
-          STRING$dataEnrichissement %>% filter(category == "InterPro") %>% 
-            mutate(term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>" ),
-                   number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-            dplyr::select(term, description, number_of_genes, fdr) %>%
-            dplyr::rename('GO term' = term,
-                          'Description' = description, 
-                          'Count in gene set' = number_of_genes, 
-                          'false dicovery rate' = fdr
-            )
-          
-        } else {
-          NULL
         }
         
-      }, 
-      selection = 'none', escape = FALSE, 
-      options = list(scrollX = TRUE)
-      )
-      
-      output$UniProt = renderDT(
-        STRING$dataEnrichissement %>% filter(category == "Keyword") %>% 
-          mutate(term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ),
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE)
-      )
-      
-      output$KEGG = renderDataTable(
-        STRING$dataEnrichissement %>% filter(category == "KEGG") %>% 
-          mutate(term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ), 
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE)
-      )
-      
-      output$PMID = renderDataTable(
-        STRING$dataEnrichissement %>% filter(category == "PMID") %>% 
-          mutate(term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" ),
-                 number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-          dplyr::select(term, description, number_of_genes, fdr) %>%
-          dplyr::rename('GO term' = term,
-                        'Description' = description, 
-                        'Count in gene set' = number_of_genes, 
-                        'false dicovery rate' = fdr
-          ), 
-        selection = 'none', escape = FALSE,
-        options = list(scrollX = TRUE )
-      )
-      
-      output$sizeQuery <- renderValueBox({
-        valueBox(
-          length(STRING$initProt), "# protein in query", icon = icon("list"),
-          color = "green"
-        )
       })
       
-      output$unmatchedProtein <- renderValueBox({
-        valueBox(
-          length(STRING$listUnknow), "# Unmatched", icon = icon("question-circle"),
-          color = "red"
+    } else {
+      STRING$annotation = NULL
+      STRING$PDB = NULL
+      shinyjs::hide(id = "geneZone")
+      shinyjs::hide(id = "PDBDIV")
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = "")
+    }
+    
+  })
+  
+  observeEvent(STRING$PDB, {
+    if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = setNames(as.character(STRING$PDB),
+                                           as.character(STRING$PDB)))
+      shinyjs::show(id = "PDBDIV")
+    } else {
+      updateSelectInput(session, "PDBSelector_ID",
+                        choices = NULL)
+      shinyjs::hide(id = "PDBDIV")
+    }
+  })
+  
+  # PDB
+  observeEvent(input$PDBSelector_ID, {
+    if(!is.null(input$PDBSelector_ID) && input$PDBSelector_ID != ""){
+      js$Visu3D(input$PDBSelector_ID)
+    } 
+    
+  })
+  
+  output$PDB_title <- renderText({ 
+    if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
+      HTML('<p class="infoGene">PDB</p>') 
+    } else {
+      NULL
+    }
+  })
+  
+  # Go terms : Component
+  output$FA_component_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
+      HTML('<p class="infoGene">Cellular component</p>') 
+    } else {
+      shinyjs::hide(id = "FA_component_title")
+      NULL
+    }
+  })
+  
+  output$FA_component = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Component")) != 0){
+      STRING$annotation %>% filter(category == "Component") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_component")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # Go terms : Function
+  output$FA_Function_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
+      HTML('<p class="infoGene">Molecular Function</p>') 
+    } else {
+      shinyjs::hide(id = "FA_Function_title")
+      NULL
+    }
+  })
+  
+  output$FA_Function = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Function")) != 0){
+      STRING$annotation %>% filter(category == "Function") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_Function")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # Go terms : Process
+  output$FA_Process_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
+      HTML('<p class="infoGene">Biological process</p>') 
+    } else {
+      shinyjs::hide(id = "FA_Process_title")
+      NULL
+    }
+  })
+  
+  output$FA_Process = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Process")) != 0){
+      STRING$annotation %>% filter(category == "Process") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_Process")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  ) 
+  
+  
+  # Pfam
+  output$FA_Pfam_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0){
+      HTML('<p class="infoGene">Pfam</p>')
+    } else {
+      shinyjs::hide(id = "FA_Pfam_title")
+      NULL
+    }
+  })
+  
+  output$FA_Pfam = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Pfam")) != 0 ){
+      STRING$annotation %>% filter(category == "Pfam") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://pfam.xfam.org/family/',term,'" target="_blank">',term,"</a>")) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_Pfam")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # SMART
+  output$FA_SMART_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
+      HTML('<p class="infoGene">SMART</p>')
+    } else {
+      shinyjs::hide(id = "FA_SMART_title")
+      NULL
+    }
+  })
+  
+  output$FA_SMART = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "SMART")) != 0){
+      STRING$annotation %>% filter(category == "SMART") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://smart.embl.de/smart/do_annotation.pl?DOMAIN=',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_SMART")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # Reactome
+  output$FA_RCTM_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
+      HTML('<p class="infoGene">Reactome</p>')
+    } else {
+      shinyjs::hide(id = "FA_RCTM_title")
+      NULL
+    }
+  })
+  
+  output$FA_RCTM = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "RCTM")) != 0){
+      STRING$annotation %>% filter(category == "RCTM") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://reactome.org/content/detail/R-',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_RCTM")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # PMID
+  output$FA_PMID_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
+      HTML('<p class="infoGene">Pubmed</p>')
+    } else {
+      shinyjs::hide(id = "FA_PMID_title")
+      NULL
+    }
+  })
+  
+  output$FA_PMID = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "PMID")) != 0){
+      STRING$annotation %>% filter(category == "PMID") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_PMID")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # KEGG
+  output$FA_KEGG_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
+      HTML('<p class="infoGene">KEGG</p>')
+    } else {
+      shinyjs::hide(id = "FA_KEGG_title")
+      NULL
+    }
+  })
+  
+  output$FA_KEGG = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "KEGG")) != 0){
+      STRING$annotation %>% filter(category == "KEGG") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>")) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_KEGG")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # InterPro
+  output$FA_InterPro_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
+      HTML('<p class="infoGene">InterPro</p>')
+    } else {
+      shinyjs::hide(id = "FA_InterPro_title")
+      NULL
+    }
+  })
+  
+  output$FA_InterPro = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "InterPro")) != 0){
+      STRING$annotation %>% filter(category == "InterPro") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>")) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_InterPro")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  # Keyword
+  output$FA_Keyword_title <- renderText({ 
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
+      HTML('<p class="infoGene">UniProt</p>')
+    } else {
+      shinyjs::hide(id = "FA_Keyword_title")
+      NULL
+    }
+  })
+  
+  output$FA_Keyword = renderDT({
+    if(!is.null(STRING$annotation) && nrow(STRING$annotation %>% filter(category == "Keyword")) != 0){
+      STRING$annotation %>% filter(category == "Keyword") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" )) %>%
+        dplyr::select(term, description) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description
+        ) 
+    } else {
+      shinyjs::hide(id = "FA_Keyword")
+      NULL
+    }
+  }, selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  #-----------------------------------------------------------------------------
+  # Enrichissement
+  #-----------------------------------------------------------------------------
+  
+  output$CC = renderDataTable(
+    STRING$dataEnrichissement %>% filter(category == "Component") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ), 
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE)
+  )
+  
+  output$BP = renderDataTable(
+    STRING$dataEnrichissement %>% filter(category == "Process") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ), 
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE)
+  )
+  
+  output$MF = renderDataTable(
+    STRING$dataEnrichissement %>% filter(category == "Function") %>% 
+      mutate(term =  gsub("\\.", ":", term),
+             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ), 
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE)
+  )
+  
+  output$INTERPRO = DT::renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "InterPro") %>% 
+        mutate(term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
         )
-      })
       
-      output$nbNodesFinal <- renderValueBox({
-        if(is.null(nrow(STRING$nodes))){
-          inter = 0
-        } else {
-          inter = nrow(STRING$nodes)
-        }
-        valueBox(
-          inter, "# nodes", icon = icon("circle"),
-          color = "blue"
-        )
-      })
-      
-      output$connection <- renderValueBox({
-        if(is.null(STRING$links)){
-          inter = 0
-        } else {
-          inter = nrow(STRING$links)
-        }
-        valueBox(
-          inter, "# edges", icon = icon("arrows-alt-h"),
-          color = "purple"
-        )
-      })
-      
-      #-----------------------------------------------------------------------------
-      # Gene report
-      #-----------------------------------------------------------------------------
-      
-      output$reportBTN <- downloadHandler(
-        filename = paste0("report_",STRING$date,"_",input$network_selected,".html"),
-        content = function(file) {
-          params <- list(si = si,
-                         date = STRING$date,
-                         annotation = STRING$annotation,
-                         gene = input$network_selected,
-                         description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
-                         species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected])
-          )
-          rmarkdown::render("report.Rmd", output_file = file,
-                            params = params,
-                            envir = new.env(parent = globalenv())
-          )
-        }
+    } else {
+      NULL
+    }
+    
+  }, 
+  selection = 'none', escape = FALSE, 
+  options = list(scrollX = TRUE)
+  )
+  
+  output$UniProt = renderDT(
+    STRING$dataEnrichissement %>% filter(category == "Keyword") %>% 
+      mutate(term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ),
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE)
+  )
+  
+  output$KEGG = renderDataTable(
+    STRING$dataEnrichissement %>% filter(category == "KEGG") %>% 
+      mutate(term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ), 
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE)
+  )
+  
+  output$PMID = renderDataTable(
+    STRING$dataEnrichissement %>% filter(category == "PMID") %>% 
+      mutate(term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" ),
+             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+      dplyr::select(term, description, number_of_genes, fdr) %>%
+      dplyr::rename('GO term' = term,
+                    'Description' = description, 
+                    'Count in gene set' = number_of_genes, 
+                    'false dicovery rate' = fdr
+      ), 
+    selection = 'none', escape = FALSE,
+    options = list(scrollX = TRUE )
+  )
+  
+  output$sizeQuery <- renderValueBox({
+    valueBox(
+      length(STRING$initProt), "# protein in query", icon = icon("list"),
+      color = "green"
+    )
+  })
+  
+  output$unmatchedProtein <- renderValueBox({
+    valueBox(
+      length(STRING$listUnknow), "# Unmatched", icon = icon("question-circle"),
+      color = "red"
+    )
+  })
+  
+  output$nbNodesFinal <- renderValueBox({
+    if(is.null(nrow(STRING$nodes))){
+      inter = 0
+    } else {
+      inter = nrow(STRING$nodes)
+    }
+    valueBox(
+      inter, "# nodes", icon = icon("circle"),
+      color = "blue"
+    )
+  })
+  
+  output$connection <- renderValueBox({
+    if(is.null(STRING$links)){
+      inter = 0
+    } else {
+      inter = nrow(STRING$links)
+    }
+    valueBox(
+      inter, "# edges", icon = icon("arrows-alt-h"), 
+      color = "purple"
+    )
+  })
+  
+  #-----------------------------------------------------------------------------
+  # Gene report
+  #-----------------------------------------------------------------------------
+  
+  output$reportBTN <- downloadHandler(
+    filename = paste0("report_",STRING$date,"_",input$network_selected,".html"),
+    content = function(file) {
+      params <- list(si = si,
+                     date = STRING$date,
+                     annotation = STRING$annotation,
+                     gene = input$network_selected,
+                     description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
+                     species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected])
       )
-      
+      rmarkdown::render("report.Rmd", output_file = file,
+                        params = params,
+                        envir = new.env(parent = globalenv())
+      )
+    }
+  )
+  
 }
 
 shinyApp(ui, server)
