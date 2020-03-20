@@ -351,6 +351,7 @@ ui <- dashboardPagePlus(
                 ))
       ),
       tabItem("enrichissement",
+              h1("Enrichissement"), 
               helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
                eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
                sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
@@ -364,7 +365,6 @@ ui <- dashboardPagePlus(
                Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-              h1("Enrichissement"), 
               h2("Go terms"),
               h3("Cellular component"),
               DTOutput('CC'),
@@ -378,6 +378,12 @@ ui <- dashboardPagePlus(
               DTOutput('UniProt'),
               h2("KEGG Pathways"), 
               DTOutput('KEGG'),
+              h2("SMART"), 
+              DTOutput('SMARTEnri'),
+              h2("Pfam"), 
+              DTOutput('PfamEnri'),
+              h2("Reactome"), 
+              DTOutput('RCTMEnri'),
               h2("Reference publications"), 
               DTOutput('PMID')
       ),
@@ -1787,6 +1793,63 @@ server <- function(input, output, session) {
       ), 
     selection = 'none', escape = FALSE,
     options = list(scrollX = TRUE)
+  )
+  
+  output$PfamEnri = DT::renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "Pfam") %>% 
+        mutate(term = paste0('<a href="http://pfam.xfam.org/family/',term,'" target="_blank">',term,"</a>"),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('Term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }, 
+  selection = 'none', escape = FALSE, 
+  options = list(scrollX = TRUE)
+  )
+  
+  output$SMARTEnri = DT::renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "SMART") %>% 
+        mutate(term = paste0('<a href="http://smart.embl.de/smart/do_annotation.pl?DOMAIN=',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('Term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }, 
+  selection = 'none', escape = FALSE, 
+  options = list(scrollX = TRUE)
+  )
+  
+  output$RCTMEnri = DT::renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "RCTM") %>% 
+        mutate(term = paste0('<a href="https://reactome.org/content/detail/R-',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('Term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }, 
+  selection = 'none', escape = FALSE, 
+  options = list(scrollX = TRUE)
   )
   
   output$INTERPRO = DT::renderDataTable({
