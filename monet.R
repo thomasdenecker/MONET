@@ -662,8 +662,22 @@ server <- function(input, output, session) {
   
   observeEvent(input$Search, {
     
-    if(input$Species== ""){
+    if (input$dataInputType == "list" && !is.null( input$protList) && length(unlist(strsplit(x =input$protList,split = '[ \r\n]' ))) == 0){
+      shinyalert("Oops!", "The search list is empty!", type = "error")
+      
+    } if (input$dataInputType == "list" && input$limitsNodes == 0){
+      shinyalert("Oops!", "The search list is empty!", type = "error")
+      
+    } else if (input$dataInputType == "file" && !is.null( input$file) && input$file$datapath == ""){
+      shinyalert("Oops!", "No files have been filled in !", type = "error")
+      
+    } else if(input$Species == ""){
       shinyalert("Oops!", "You must select a species !", type = "error")
+      
+    } else if (input$limitsNodes == 0  && length(input$colCoExpression) == 0){
+      shinyalert("Oops!", "If you do not want to search for a link in STRING, 
+                 you must fill in columns for a co-expression search. Otherwise, change the limit to a minimum of 1", type = "error")
+    
     } else {
       m = 8
       rvEnvent$clean = F
