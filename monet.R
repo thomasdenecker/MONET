@@ -11,7 +11,6 @@
 ###                                Library                                   ###
 ################################################################################
 
-
 # Applicatin
 library(shiny)
 library(shinyjs)
@@ -998,7 +997,9 @@ server <- function(input, output, session) {
                                       "color" = input$colNodes)
                 lien = as.data.frame(lien, stringsAsFactors = F)
                 STRING$links = as.data.frame(cbind(from = STRING$associationProtGenes[lien[, 1]], 
-                                                   to = STRING$associationProtGenes[lien[, 2]]), stringsAsFactors = F)
+                                                   to = STRING$associationProtGenes[lien[, 2]],
+                                                   source = "CoExpress"), 
+                                             stringsAsFactors = F)
                 
               }
             }
@@ -1081,7 +1082,7 @@ server <- function(input, output, session) {
   output$network <- renderVisNetwork({
     if(!is.null(STRING$nodes)){
       
-      STRING$links = STRING$links %>%
+      STRING$links = as.data.frame(STRING$links, stringsAsFactors = F) %>%
         mutate(color = case_when(source == "STRING" ~ input$STRING_col,
                                  source == "CoExpress" ~ input$CoExpress_col,
                                  source == "Both" ~ input$Both_col,
@@ -1161,7 +1162,7 @@ server <- function(input, output, session) {
   
   output$selected_var_uniprot<- renderUI({
     
-    if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0){
+    if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0 && !is.na(STRING$UniprotID)){
       if(length(STRING$UniprotID) != 1){
         HTML(paste0('<div class="dropdown">
         <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -1357,33 +1358,48 @@ server <- function(input, output, session) {
         incProgress(1/m, detail = "Get Uniprot ID")
         
         STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
+        cat(STRING$ID)
         STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
-        STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+        if(nrow(STRING$UniprotID) != 0){
+          STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+        } else {
+          STRING$UniprotID = NA
+        }
         
         # Quick GO 
         if(!is.na(STRING$UniprotID)){
-          requestURL <- paste0("https://www.ebi.ac.uk/QuickGO/services/annotation/search?includeFields=goName&geneProductId=",STRING$UniprotID)
+          interName = as.matrix(idMappingUniprot("ID", "ACC", STRING$UniprotID, "tab"))[1,2]
+          requestURL <- paste0("https://www.ebi.ac.uk/QuickGO/services/annotation/search?includeFields=goName&geneProductId=",interName)
           r <- GET(requestURL, accept("application/json"))
+          
+          stop_for_status(r)
+          
+          json <- toJSON(content(r))
           quickGO = fromJSON(json)
           quickGO = quickGO$results
-          quickGO = cbind(category = 	unlist(quickGO$goAspect),
-                          term	= unlist(quickGO$goId),
-                          number_of_genes	= 1,
-                          ratio_in_set = 1	,
-                          ncbiTaxonId	= STRING$ourSpecies,
-                          inputGenes = STRING$UniprotID	,
-                          preferredNames = STRING$UniprotID	,
-                          description = unlist(quickGO$goName) )
           
-          quickGO = as.data.frame(quickGO, stringsAsFactors = F) %>% mutate(
-            category = case_when(category == "cellular_component" ~ "Component",
-                                 category == "biological_process" ~ "Process",
-                                 category == "molecular_function" ~ "Function"
-                                 )
-          )
-          
-          associateAnnot = rbind(STRING$annotation,quickGO )
-          STRING$annotation = associateAnnot
+          if(!is.null(quickGO) && nrow(quickGO) != 0 && length(quickGO) != 0){
+            quickGO = cbind(category = 	unlist(quickGO$goAspect),
+                            term	= unlist(quickGO$goId),
+                            number_of_genes	= 1,
+                            ratio_in_set = 1	,
+                            ncbiTaxonId	= STRING$ourSpecies,
+                            inputGenes = STRING$UniprotID	,
+                            preferredNames = STRING$UniprotID	,
+                            description = unlist(quickGO$goName) )
+            
+            
+            quickGO = as.data.frame(quickGO, stringsAsFactors = F) %>% 
+              mutate(
+                category = case_when(category == "cellular_component" ~ "Component",
+                                     category == "biological_process" ~ "Process",
+                                     category == "molecular_function" ~ "Function"
+                )
+              )
+            
+            associateAnnot = rbind(STRING$annotation,quickGO )
+            STRING$annotation = associateAnnot
+          }
         }
         
         incProgress(1/m, detail = "Get structure files")
