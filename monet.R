@@ -11,8 +11,8 @@
 ###                                Library                                   ###
 ################################################################################
 
-library(dplyr)
-library(igraph)
+
+# Applicatin
 library(shiny)
 library(shinyjs)
 library(shinyalert)
@@ -20,12 +20,22 @@ library(shinydashboard)
 library(shinydashboardPlus)
 library(shinyWidgets)
 library(shinycssloaders)
+library(colourpicker)
+
+# Query
+library(httr)
+library(jsonlite)
+library(xml2)
+
+# Visualisation
 library(DT)
 library(visNetwork)
-library(httr)
+library(igraph)
 library(plotly)
+
+# Data treatement 
+library(dplyr)
 library(reshape2)
-library(colourpicker)
 
 ################################################################################
 ###                                URL                                       ###
@@ -235,13 +245,15 @@ ui <- dashboardPagePlus(
                                  selected = NULL, multiple = FALSE),
                   
                   selectizeInput("colCoExpression", "Select columns to calculate co-expression", 
-                                 width = "500px", choices = NULL, 
+                                 width = "500px", choices = NULL,  
                                  selected = NULL, multiple = T),
+                  
                   numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
                                value = 10, width = "500px"),
                   selectizeInput("distance", "Co-expression calculation", 
                                  width = "500px", choices = c("classic", "correlation"),
                                  selected = "classic",  multiple =F)
+                  
               ),
               
               h4(class = "infoGene","2- Select a species"),
@@ -1342,6 +1354,32 @@ server <- function(input, output, session) {
         STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
         STRING$UniprotID = as.character(STRING$UniprotID[1,2])
         
+        # Quick GO 
+        if(!is.na(STRING$UniprotID)){
+          requestURL <- paste0("https://www.ebi.ac.uk/QuickGO/services/annotation/search?includeFields=goName&geneProductId=",STRING$UniprotID)
+          r <- GET(requestURL, accept("application/json"))
+          quickGO = fromJSON(json)
+          quickGO = quickGO$results
+          quickGO = cbind(category = 	unlist(quickGO$goAspect),
+                          term	= unlist(quickGO$goId),
+                          number_of_genes	= 1,
+                          ratio_in_set = 1	,
+                          ncbiTaxonId	= STRING$ourSpecies,
+                          inputGenes = STRING$UniprotID	,
+                          preferredNames = STRING$UniprotID	,
+                          description = unlist(quickGO$goName) )
+          
+          quickGO = as.data.frame(quickGO, stringsAsFactors = F) %>% mutate(
+            category = case_when(category == "cellular_component" ~ "Component",
+                                 category == "biological_process" ~ "Process",
+                                 category == "molecular_function" ~ "Function"
+                                 )
+          )
+          
+          associateAnnot = rbind(STRING$annotation,quickGO )
+          STRING$annotation = associateAnnot
+        }
+        
         incProgress(1/m, detail = "Get structure files")
         if(!is.na(STRING$UniprotID)){
           STRING$PDB = as.matrix(idMappingUniprot("ID", "PDB_ID", STRING$UniprotID, "tab"))
@@ -1446,7 +1484,8 @@ server <- function(input, output, session) {
         dplyr::select(term, description) %>%
         dplyr::rename('GO term' = term,
                       'Description' = description
-        ) 
+        ) %>%
+        distinct()
     } else {
       shinyjs::hide(id = "FA_component")
       NULL
@@ -1473,7 +1512,8 @@ server <- function(input, output, session) {
         dplyr::select(term, description) %>%
         dplyr::rename('GO term' = term,
                       'Description' = description
-        ) 
+        ) %>%
+        distinct()
     } else {
       shinyjs::hide(id = "FA_Function")
       NULL
@@ -1500,7 +1540,8 @@ server <- function(input, output, session) {
         dplyr::select(term, description) %>%
         dplyr::rename('GO term' = term,
                       'Description' = description
-        ) 
+        ) %>%
+        distinct()
     } else {
       shinyjs::hide(id = "FA_Process")
       NULL
