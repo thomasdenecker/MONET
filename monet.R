@@ -121,7 +121,7 @@ ui <- dashboardPagePlus(
       title = HTML("<i class='fa fa-circle'></i>  Node settings"),
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
-      colourInput("colNodes", NULL, "orange",allowTransparent = TRUE ), 
+      colourInput("colNodes", "Node color", "orange",allowTransparent = TRUE ), 
       selectizeInput("colo","Enrichissement coloration", choices = NULL, 
                      selected = NULL, multiple = FALSE), 
       selectizeInput("coloL2",NULL, choices = NULL, 
@@ -364,27 +364,8 @@ ui <- dashboardPagePlus(
                Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
                quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
                tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-              h2("Go terms"),
-              h3("Cellular component"),
-              DTOutput('CC'),
-              h3("Biological Process"),
-              DTOutput('BP'),
-              h3("Molecular Function"),
-              DTOutput('MF'),
-              h2("INTERPRO Protein Domains and Features"), 
-              DTOutput('INTERPRO'),
-              h2("UniProt Keywords"), 
-              DTOutput('UniProt'),
-              h2("KEGG Pathways"), 
-              DTOutput('KEGG'),
-              h2("SMART"), 
-              DTOutput('SMARTEnri'),
-              h2("Pfam"), 
-              DTOutput('PfamEnri'),
-              h2("Reactome"), 
-              DTOutput('RCTMEnri'),
-              h2("Reference publications"), 
-              DTOutput('PMID')
+              uiOutput("enrichissemntText"),
+              uiOutput("enrichissemntUI")
       ),
       tabItem("rawdata",
               h1("Raw data"), 
@@ -714,6 +695,12 @@ server <- function(input, output, session) {
       m = 8
       rvEnvent$clean = F
       STRING$lien = NULL
+      STRING$dataEnrichissement = NULL
+      STRING$nodes = NULL
+      STRING$links = NULL
+      STRING$network = NULL
+      STRING$associationProtGenes = NULL
+      
       withProgress(message = 'Extraction in progress', value = 0, {
         
         incProgress(1/m, detail = "Initilization")
@@ -813,10 +800,37 @@ server <- function(input, output, session) {
           
           request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
           request_url = paste0(request_url, parametersInfo,"&limit=1", collapse = "")
-          STRING$dataInfo = read.csv2(request_url, sep ="\t", header = T, stringsAsFactors = F)
+          firstRequest = GET(request_url)
+          if(firstRequest$status_code == 400) {
+            STRING$dataInfo = data.frame(queryIndex=numeric(),
+                                         stringId_A=character(), 
+                                         stringId_B=character(), 
+                                         preferredName_A=character(), 
+                                         preferredName_B=character(), 
+                                         ncbiTaxonId=character(), 
+                                         score=numeric(), 
+                                         nscore=numeric(), 
+                                         fscore=numeric(), 
+                                         pscore=numeric(), 
+                                         ascore=numeric(), 
+                                         escore=numeric(), 
+                                         dscore=numeric(), 
+                                         tscore=numeric(), 
+                                         stringsAsFactors=FALSE) 
+          } else{
+            inter = readr:::read_tsv(content(firstRequest))
+            STRING$dataInfo = as.data.frame(inter, stringsAsFactors = F)
+          }
+          
           STRING$dataInfoAll = STRING$dataInfo 
-          STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
-          STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+          if(nrow(STRING$dataInfo) == 0){
+            STRING$associationProtGenes = setNames(STRING$initProt, STRING$initProt)
+            STRING$listUnknow = setNames(STRING$initProt, STRING$initProt)
+          } else {
+            STRING$associationProtGenes[(STRING$dataInfo$queryIndex + 1) ] = STRING$dataInfo$preferredName
+            STRING$listUnknow = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
+          }
+          
           STRING$associationProtGenes[is.na(STRING$associationProtGenes)] = names(STRING$associationProtGenes)[is.na(STRING$associationProtGenes)]
           
           #-------------------------------------------------------------------------------
@@ -824,7 +838,7 @@ server <- function(input, output, session) {
           #-------------------------------------------------------------------------------
           incProgress(1/m, detail = "Add new proteins")
           method = "interaction_partners"
-          if(input$limitsNodes == 0) {
+          if(input$limitsNodes == 0  || nrow(STRING$dataInfo) == 0) {
             STRING$dataInteraction = NULL
           } else {
             parametersGraph = paste0(parameters, "&limit=",input$limitsNodes)
@@ -835,13 +849,13 @@ server <- function(input, output, session) {
                                                stringsAsFactors = F)
           }
           
-          if(input$limitsNodes != 0 && nrow(STRING$dataInteraction) > 500){
+          if(input$limitsNodes != 0 && nrow(STRING$dataInfo) != 0 && nrow(STRING$dataInteraction) > 500){
             
             shinyalert("Oops!", paste0("The graph cannot contain more than 500 nodes. Reduce limits or reduce the list to be searched (actually size = ",nrow(STRING$dataInteraction),")"), type = "error")
             rvEnvent$search = F
             
           } else {
-            if(input$limitsNodes != 0){
+            if(input$limitsNodes != 0 && nrow(STRING$dataInfo) != 0){
               #-------------------------------------------------------------------------------
               # Connexions entre les nouvelles 
               #-------------------------------------------------------------------------------
@@ -903,19 +917,18 @@ server <- function(input, output, session) {
               #---------------------------------------------------------------------------
               incProgress(1/m, detail = "Graph creation")
               
+              nodes = data.frame(id = character(), 
+                                 label= character(), 
+                                 shape= character(), 
+                                 color= character())
+              
               if(nrow(STRING$dataInfoAll) != 0 ){
                 nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
                   mutate(annotation = preferredName,
                          type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
                                           T ~ "dot"),
                          color = input$colNodes)
-              } else {
-                nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
-                  mutate(annotation = preferredName,
-                         type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
-                                          T ~ "dot")) %>%
-                  mutate(color = input$colNodes)
-              }
+              } 
               
               colnames(nodes) = c("id", "label", "shape", "color")
               
@@ -926,7 +939,7 @@ server <- function(input, output, session) {
                                             "color" = "gray")) %>% distinct()
               }
               
-              addNodesNew = STRING$associationProtGenes[! STRING$associationProtGenes %in% nodes$id]
+              addNodesNew = STRING$associationProtGenes[! STRING$associationProtGenes %in% nodes[,"id"]]
               if(length(addNodesNew) != 0){
                 nodes  = rbind(nodes, cbind("id" = addNodesNew, 
                                             "label"= addNodesNew, 
@@ -934,73 +947,87 @@ server <- function(input, output, session) {
                                             "color" = "gray")) %>% distinct()
               }
               
-              STRING$nodes = nodes 
+              STRING$nodes = as.data.frame(nodes, stringsAsFactors= F) 
               
-              links = data.frame(STRING$dataNetwork[, c("preferredName_A", "preferredName_B")])
-              
-              links = t(apply(links, 1, function(x){
-                sort(x)
-              }))
-              
-              links = data.frame(links, stringsAsFactors=FALSE)
-              
-              links = as.data.frame(links, stringsAsFactors = F) %>%
-                distinct()
-              links = cbind(links, "blue", "STRING")
-              colnames(links) = c("from", "to", "color", "source") 
-              
-              if(exists("lien") && nrow(lien) != 0){
-                convertLink = NULL
-                for(i in 1:nrow(lien)){
-                  convertLink = rbind(convertLink,
-                                      c(
-                                        as.character(STRING$dataInfo$preferredName)[as.numeric(STRING$dataInfo$queryIndex) == (which(as.character(STRING$initProt) == as.character(lien[i,1]))-1)],
-                                        as.character(STRING$dataInfo$preferredName)[as.numeric(STRING$dataInfo$queryIndex) == (which(as.character(STRING$initProt) == as.character(lien[i,2]))-1)]
-                                      )
-                  )
-                  
+              if(!is.null(STRING$dataNetwork) && nrow(STRING$dataNetwork) != 0){
+                links = data.frame(STRING$dataNetwork[, c("preferredName_A", "preferredName_B")])
+                links = t(apply(links, 1, function(x){
+                  sort(x)
+                }))
+                
+                links = data.frame(links, stringsAsFactors=FALSE)
+                
+                links = as.data.frame(links, stringsAsFactors = F) %>%
+                  distinct()
+                links = cbind(links, "blue", "STRING")
+                colnames(links) = c("from", "to", "color", "source") 
+                
+                if(exists("lien") && nrow(lien) != 0){
+                  convertLink = NULL
+                  for(i in 1:nrow(lien)){
+                    convertLink = rbind(convertLink,
+                                        c(
+                                          as.character(STRING$dataInfo$preferredName)[as.numeric(STRING$dataInfo$queryIndex) == (which(as.character(STRING$initProt) == as.character(lien[i,1]))-1)],
+                                          as.character(STRING$dataInfo$preferredName)[as.numeric(STRING$dataInfo$queryIndex) == (which(as.character(STRING$initProt) == as.character(lien[i,2]))-1)]
+                                        )
+                    )
+                    
+                  }
+                  convertLink = cbind(convertLink, "green", "CoExpress")
+                  colnames(convertLink) = c("from", "to", "color", "source")
+                  links = rbind(links, convertLink)
                 }
-                convertLink = cbind(convertLink, "green", "CoExpress")
-                colnames(convertLink) = c("from", "to", "color", "source")
-                links = rbind(links, convertLink)
+                
+                links = as.data.frame(links, stringsAsFactors = F) %>%
+                  distinct()
+                
+                linksPaste = as.character(setNames(paste0(links[,1], links[,2]),
+                                                   paste0(links[,1], links[,2])))
+                namesDupli = as.character(linksPaste[duplicated(linksPaste)])
+                posDuppli = as.numeric(which(linksPaste %in% namesDupli))
+                
+                # Change color
+                colorLinks = as.character(links[,3])
+                colorLinks[posDuppli] = "black"
+                links[,3] = as.character(colorLinks)
+                
+                # Change source
+                sourcesLinks = as.character(links[,4])
+                sourcesLinks[posDuppli] = "Both"
+                links[,4] = as.character(sourcesLinks)
+                
+                links = as.data.frame(links, stringsAsFactors = F) %>%
+                  distinct()
+                
+                STRING$links = links
+                
+              } else {
+                STRING$links = NULL
               }
               
-              links = as.data.frame(links, stringsAsFactors = F) %>%
-                distinct()
-              
-              linksPaste = as.character(setNames(paste0(links[,1], links[,2]),
-                                                 paste0(links[,1], links[,2])))
-              namesDupli = as.character(linksPaste[duplicated(linksPaste)])
-              posDuppli = as.numeric(which(linksPaste %in% namesDupli))
-              
-              # Change color
-              colorLinks = as.character(links[,3])
-              colorLinks[posDuppli] = "black"
-              links[,3] = as.character(colorLinks)
-              
-              # Change source
-              sourcesLinks = as.character(links[,4])
-              sourcesLinks[posDuppli] = "Both"
-              links[,4] = as.character(sourcesLinks)
-              
-              links = as.data.frame(links, stringsAsFactors = F) %>%
-                distinct()
-              
-              STRING$links = links
               
             } else {
               if(exists("lien") && nrow(lien) != 0){
                 
-                STRING$nodes =  cbind("id" = STRING$associationProtGenes[STRING$initProt], 
+                STRING$nodes =  cbind.data.frame("id" = STRING$associationProtGenes[STRING$initProt], 
                                       "label"= STRING$initProt, 
                                       "shape" = "square", 
-                                      "color" = input$colNodes)
+                                      "color" = input$colNodes, 
+                                      stringsAsFactors = F)
                 lien = as.data.frame(lien, stringsAsFactors = F)
                 STRING$links = as.data.frame(cbind(from = STRING$associationProtGenes[lien[, 1]], 
                                                    to = STRING$associationProtGenes[lien[, 2]],
                                                    source = "CoExpress"), 
                                              stringsAsFactors = F)
                 
+              } else {
+                STRING$links = data.frame(from = character(), 
+                                          to= character(), 
+                                          source= character())
+                STRING$nodes = cbind.data.frame("id" = STRING$listUnknow, 
+                                     "label"= STRING$listUnknow, 
+                                     "shape" = "square", 
+                                     "color" = "gray", stringsAsFactors = F)
               }
             }
             
@@ -1081,18 +1108,26 @@ server <- function(input, output, session) {
   
   output$network <- renderVisNetwork({
     if(!is.null(STRING$nodes)){
+      if(!is.null(STRING$links) && nrow(STRING$links) != 0){
+        STRING$links = as.data.frame(STRING$links, stringsAsFactors = F) %>%
+          mutate(color = case_when(source == "STRING" ~ input$STRING_col,
+                                   source == "CoExpress" ~ input$CoExpress_col,
+                                   source == "Both" ~ input$Both_col,
+                                   T ~ "gray"
+          ))
+      } 
       
-      STRING$links = as.data.frame(STRING$links, stringsAsFactors = F) %>%
-        mutate(color = case_when(source == "STRING" ~ input$STRING_col,
-                                 source == "CoExpress" ~ input$CoExpress_col,
-                                 source == "Both" ~ input$Both_col,
-                                 T ~ "gray"
-        ))
+      if(nrow(STRING$dataInfo) == 0) {
+        selectable = F
+        shinyjs::hide(id = "geneZone")
+      } else {
+        selectable = T
+      }
       
-      STRING$network = visNetwork(as.data.frame(STRING$nodes), as.data.frame(STRING$links)) %>%
+      STRING$network = visNetwork(as.data.frame(STRING$nodes), STRING$links) %>%
         visExport() %>%
         visNodes(size = input$sizeNodes) %>%
-        visOptions(nodesIdSelection = TRUE,
+        visOptions(nodesIdSelection = selectable,
                    highlightNearest = TRUE) %>%
         visIgraphLayout(layout = input$layout, randomSeed = 123) %>%
         visInteraction(navigationButtons = TRUE, 
@@ -1766,53 +1801,106 @@ server <- function(input, output, session) {
   # Enrichissement
   #-----------------------------------------------------------------------------
   
-  output$CC = renderDataTable(
-    STRING$dataEnrichissement %>% filter(category == "Component") %>% 
-      mutate(term =  gsub("\\.", ":", term),
-             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ), 
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE)
+  output$enrichissemntText <- renderUI({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      shinyjs::show(id = "enrichissemntUI")
+      HTML("<b>Enrichment was found ! </b>")
+    } else {
+      shinyjs::hide(id = "enrichissemntUI")
+      HTML("<b>No enrichment was found</b>")
+    }  
+    
+  })
+  output$enrichissemntUI <- renderUI({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      tagList( h2("Go terms"),
+               h3("Cellular component"),
+               DTOutput('CC'),
+               h3("Biological Process"),
+               DTOutput('BP'),
+               h3("Molecular Function"),
+               DTOutput('MF'),
+               h2("INTERPRO Protein Domains and Features"), 
+               DTOutput('INTERPRO'),
+               h2("UniProt Keywords"), 
+               DTOutput('UniProt'),
+               h2("KEGG Pathways"), 
+               DTOutput('KEGG'),
+               h2("SMART"), 
+               DTOutput('SMARTEnri'),
+               h2("Pfam"), 
+               DTOutput('PfamEnri'),
+               h2("Reactome"), 
+               DTOutput('RCTMEnri'),
+               h2("Reference publications"), 
+               DTOutput('PMID'))
+    } 
+  })
+  
+  output$CC = renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "Component") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }
+  , 
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE)
   )
   
-  output$BP = renderDataTable(
-    STRING$dataEnrichissement %>% filter(category == "Process") %>% 
-      mutate(term =  gsub("\\.", ":", term),
-             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ), 
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE)
+  output$BP = renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "Process") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }
+  , 
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE)
   )
   
-  output$MF = renderDataTable(
-    STRING$dataEnrichissement %>% filter(category == "Function") %>% 
-      mutate(term =  gsub("\\.", ":", term),
-             term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ), 
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE)
+  output$MF = renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "Function") %>% 
+        mutate(term =  gsub("\\.", ":", term),
+               term = paste0('<a href="http://amigo.geneontology.org/amigo/term/',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }, 
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE)
   )
   
   output$PfamEnri = DT::renderDataTable({
-    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
       STRING$dataEnrichissement %>% filter(category == "Pfam") %>% 
         mutate(term = paste0('<a href="http://pfam.xfam.org/family/',term,'" target="_blank">',term,"</a>"),
                number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
@@ -1831,7 +1919,7 @@ server <- function(input, output, session) {
   )
   
   output$SMARTEnri = DT::renderDataTable({
-    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
       STRING$dataEnrichissement %>% filter(category == "SMART") %>% 
         mutate(term = paste0('<a href="http://smart.embl.de/smart/do_annotation.pl?DOMAIN=',term,'" target="_blank">',term,"</a>" ),
                number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
@@ -1850,7 +1938,7 @@ server <- function(input, output, session) {
   )
   
   output$RCTMEnri = DT::renderDataTable({
-    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
       STRING$dataEnrichissement %>% filter(category == "RCTM") %>% 
         mutate(term = paste0('<a href="https://reactome.org/content/detail/R-',term,'" target="_blank">',term,"</a>" ),
                number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
@@ -1869,7 +1957,7 @@ server <- function(input, output, session) {
   )
   
   output$INTERPRO = DT::renderDataTable({
-    if(!is.null(STRING$dataEnrichissement ) & nrow(STRING$dataEnrichissement ) != 0){
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
       STRING$dataEnrichissement %>% filter(category == "InterPro") %>% 
         mutate(term = paste0('<a href="https://www.ebi.ac.uk/interpro/entry/InterPro/',term,'/" target="_blank">',term,"</a>" ),
                number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
@@ -1889,46 +1977,64 @@ server <- function(input, output, session) {
   options = list(scrollX = TRUE)
   )
   
-  output$UniProt = renderDT(
-    STRING$dataEnrichissement %>% filter(category == "Keyword") %>% 
-      mutate(term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ),
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE)
+  output$UniProt = renderDT({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "Keyword") %>% 
+        mutate(term = paste0('<a href="https://www.uniprot.org/keywords/',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }
+  ,
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE)
   )
   
-  output$KEGG = renderDataTable(
-    STRING$dataEnrichissement %>% filter(category == "KEGG") %>% 
-      mutate(term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ), 
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE)
+  output$KEGG = renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "KEGG") %>% 
+        mutate(term = paste0('<a href="https://www.genome.jp/kegg-bin/show_pathway?',term,'" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }
+  , 
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE)
   )
   
-  output$PMID = renderDataTable(
-    STRING$dataEnrichissement %>% filter(category == "PMID") %>% 
-      mutate(term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" ),
-             number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
-      dplyr::select(term, description, number_of_genes, fdr) %>%
-      dplyr::rename('GO term' = term,
-                    'Description' = description, 
-                    'Count in gene set' = number_of_genes, 
-                    'false dicovery rate' = fdr
-      ), 
-    selection = 'none', escape = FALSE,
-    options = list(scrollX = TRUE )
+  output$PMID = renderDataTable({
+    if(!is.null(STRING$dataEnrichissement ) && nrow(STRING$dataEnrichissement ) != 0){
+      STRING$dataEnrichissement %>% filter(category == "PMID") %>% 
+        mutate(term = paste0('<a href="https://www-ncbi-nlm-nih-gov.insb.bib.cnrs.fr/pubmed?term=',gsub("PMID.", "", term),'%5Buid" target="_blank">',term,"</a>" ),
+               number_of_genes = paste0(number_of_genes , " of ", number_of_genes_in_background)) %>%
+        dplyr::select(term, description, number_of_genes, fdr) %>%
+        dplyr::rename('GO term' = term,
+                      'Description' = description, 
+                      'Count in gene set' = number_of_genes, 
+                      'false dicovery rate' = fdr
+        )
+    } else {
+      NULL
+    }
+  }
+  , 
+  selection = 'none', escape = FALSE,
+  options = list(scrollX = TRUE )
   )
   
   output$sizeQuery <- renderValueBox({
