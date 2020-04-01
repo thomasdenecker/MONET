@@ -272,13 +272,13 @@ ui <- dashboardPagePlus(
                                     type = "markdown", 
                                     content = "colAbondanceHelp"),
                            
-                           selectizeInput("colPvalue", "Select column(s) to colorate by quality score values", 
+                           selectizeInput("colQS", "Select column(s) to colorate by quality score values", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) %>% 
                              helper(icon = "question-circle",
                                     colour = "#3c8dbc",
                                     type = "markdown", 
-                                    content = "colPvalueHelp"),
+                                    content = "colQSHelp"),
                            
                            selectizeInput("colAnnotation", "select column(s) to color according to an annotation", 
                                           width = "100%", choices = NULL,  
@@ -597,7 +597,7 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "protColumn")
       shinyjs::hide(id = "protList")
       shinyjs::hide(id = "colAbondance")
-      shinyjs::hide(id = "colPvalue")
+      shinyjs::hide(id = "colQS")
       shinyjs::hide(id = "colAnnotation")
       reset("file")
       updateNumericInput(session, "limitsNodes", value = 1)
@@ -630,7 +630,7 @@ server <- function(input, output, session) {
     shinyjs::show(id = "contents")
     shinyjs::show(id = "protColumn")
     shinyjs::show(id = "colAbondance")
-    shinyjs::show(id = "colPvalue")
+    shinyjs::show(id = "colQS")
     shinyjs::show(id = "colAnnotation")
     
     updateSelectizeInput(session, "colCoExpression", 
@@ -646,7 +646,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colCoExpression", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
-    updateSelectizeInput(session, "colPvalue", 
+    updateSelectizeInput(session, "colQS", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
     updateSelectizeInput(session, "colAbondance", 
@@ -664,7 +664,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colCoExpression", 
                          choices = inter )
     
-    updateSelectizeInput(session, "colPvalue", 
+    updateSelectizeInput(session, "colQS", 
                          choices = inter )
     
     updateSelectizeInput(session, "colAbondance", 
@@ -844,6 +844,7 @@ server <- function(input, output, session) {
             
           }
           updatePickerInput(session, "dataInputType", selected = "list")
+          
           if(! is.null(input$colAnnotation) && length(input$colAnnotation) != 0){
             updateSelectInput(session, "coloAnnot",
                               choices = c("None" = "None", 
@@ -852,6 +853,18 @@ server <- function(input, output, session) {
                               selected = "None"
             )
           }
+          
+          
+          if(! is.null(input$colQS) && length(input$colQS) != 0){
+            updateSelectInput(session, "coloQS",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(input$colQS), 
+                                                   as.character(input$colQS))) ,
+                              selected = "None"
+            )
+          }
+          
+          
         }
         
         if(length(STRING$initProt) > 500){
@@ -1140,12 +1153,14 @@ server <- function(input, output, session) {
   observeEvent(input$coloL2, {
     if(input$coloL2 != "" && input$coloL2 != "None"){
       updateSelectInput(session, "coloAnnot", selected = "None")
+      updateSelectInput(session, "coloQS", selected = "None")
+      
       inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
       inter = unlist(strsplit(as.character(inter), ","))
       STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None"){
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
         STRING$nodes$color = input$colNodes
       } 
     }
@@ -1155,6 +1170,8 @@ server <- function(input, output, session) {
     if(input$coloAnnot != "" && input$coloAnnot != "None" ){
       updateSelectInput(session, "coloL2", selected = "None")
       updateSelectInput(session, "colo", selected = "None")
+      updateSelectInput(session, "coloQS", selected = "None")
+      
       inter = STRING$importFile
       inter[, input$coloAnnot] = as.logical(inter[, input$coloAnnot])
       inter = inter[which(inter[, input$coloAnnot]), input$protColumn]
@@ -1162,16 +1179,56 @@ server <- function(input, output, session) {
       STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None"){
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
         STRING$nodes$color = input$colNodes
       }
     }
   })
   
+  
+  observeEvent(input$coloQS, {
+    if(input$coloQS != "" && input$coloQS != "None" ){
+      
+      updateSelectInput(session, "coloL2", selected = "None")
+      updateSelectInput(session, "colo", selected = "None")
+      updateSelectInput(session, "coloAnnot", selected = "None")
+      
+      inter = STRING$importFile
+      inter[, input$coloQS] = as.numeric(as.character(inter[, input$coloQS]))
+      
+      STRING$nodes$color = "#808080"
+      
+      interList = inter[which(inter[, input$coloQS] > 0.05), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFFFFF" 
+      
+      interList = inter[which(inter[, input$coloQS] <= 0.05 && inter[, input$coloQS] > 0.01 ), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFA07A" 
+      
+      interList = inter[which(inter[, input$coloQS] <= 0.01 && inter[, input$coloQS] > 0.001), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FF0000" 
+      
+      interList = inter[which(inter[, input$coloQS] < 0.001), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#8B0000" 
+      
+      
+    } else {
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
+        STRING$nodes$color = input$colNodes
+      }
+    }
+  })
+  
+  
+  
   observeEvent(input$colNodes, {
     updateSelectInput(session, "colo", selected = "None")
     updateSelectInput(session, "coloL2", selected = "None")
     updateSelectInput(session, "coloAnnot", selected = "None")
+    updateSelectInput(session, "coloQS", selected = "None")
     STRING$nodes$color = input$colNodes
   }
   ) 
