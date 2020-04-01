@@ -132,6 +132,9 @@ ui <- dashboardPagePlus(
                      selected = "None", multiple = FALSE),
       
       selectizeInput("coloQS","Quality score coloration", choices = "None", 
+                     selected = "None", multiple = FALSE),
+      
+      selectizeInput("sizeBycolumn","Size by column", choices = "None", 
                      selected = "None", multiple = FALSE)
     ),
     
@@ -264,13 +267,13 @@ ui <- dashboardPagePlus(
                     
                     column(4,h4("Annotation and coloration parameters"),
                            
-                           selectizeInput("colAbondance", "Select column(s) to to define the size of the nodes as a function of abundance", 
+                           selectizeInput("colNodeSize", "Select column(s) to to define the size of the nodes as a function of abundance", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) %>% 
                              helper(icon = "question-circle",
                                     colour = "#3c8dbc",
                                     type = "markdown", 
-                                    content = "colAbondanceHelp"),
+                                    content = "colNodeSizeHelp"),
                            
                            selectizeInput("colQS", "Select column(s) to colorate by quality score values", 
                                           width = "100%", choices = NULL,  
@@ -596,7 +599,7 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "contents")
       shinyjs::hide(id = "protColumn")
       shinyjs::hide(id = "protList")
-      shinyjs::hide(id = "colAbondance")
+      shinyjs::hide(id = "colNodeSize")
       shinyjs::hide(id = "colQS")
       shinyjs::hide(id = "colAnnotation")
       reset("file")
@@ -629,7 +632,7 @@ server <- function(input, output, session) {
     shinyjs::show(id = "topSelected")
     shinyjs::show(id = "contents")
     shinyjs::show(id = "protColumn")
-    shinyjs::show(id = "colAbondance")
+    shinyjs::show(id = "colNodeSize")
     shinyjs::show(id = "colQS")
     shinyjs::show(id = "colAnnotation")
     
@@ -649,7 +652,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colQS", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
-    updateSelectizeInput(session, "colAbondance", 
+    updateSelectizeInput(session, "colNodeSize", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
     updateSelectizeInput(session, "colAnnotation", 
@@ -667,7 +670,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colQS", 
                          choices = inter )
     
-    updateSelectizeInput(session, "colAbondance", 
+    updateSelectizeInput(session, "colNodeSize", 
                          choices = inter )
     
     updateSelectizeInput(session, "colAnnotation", 
@@ -855,6 +858,15 @@ server <- function(input, output, session) {
           }
           
           
+          if(! is.null(input$colNodeSize) && length(input$colNodeSize) != 0){
+            updateSelectInput(session, "sizeBycolumn",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(input$colNodeSize), 
+                                                   as.character(input$colNodeSize))) ,
+                              selected = "None"
+            )
+          }
+          
           if(! is.null(input$colQS) && length(input$colQS) != 0){
             updateSelectInput(session, "coloQS",
                               choices = c("None" = "None", 
@@ -1010,25 +1022,28 @@ server <- function(input, output, session) {
               incProgress(1/m, detail = "Graph creation")
               
               nodes = data.frame(id = character(), 
-                                 label= character(), 
-                                 shape= character(), 
-                                 color= character())
+                                 label = character(), 
+                                 shape = character(), 
+                                 color = character(), 
+                                 size = numeric())
               
               if(nrow(STRING$dataInfoAll) != 0 ){
                 nodes  = STRING$dataInfoAll[,c("preferredName","annotation")] %>% distinct() %>%
                   mutate(annotation = preferredName,
                          type = case_when(preferredName %in% STRING$associationProtGenes ~ "square",
                                           T ~ "dot"),
-                         color = input$colNodes)
+                         color = input$colNodes, 
+                         size = 20)
               } 
               
-              colnames(nodes) = c("id", "label", "shape", "color")
+              colnames(nodes) = c("id", "label", "shape", "color", "size")
               
               if(length(STRING$listUnknow) != 0){
                 nodes  = rbind(nodes, cbind("id" = STRING$listUnknow, 
                                             "label"= STRING$listUnknow, 
                                             "shape" = "square", 
-                                            "color" = "gray")) %>% distinct()
+                                            "color" = "gray", 
+                                            "size" = 20)) %>% distinct()
               }
               
               addNodesNew = STRING$associationProtGenes[! STRING$associationProtGenes %in% nodes[,"id"]]
@@ -1036,7 +1051,8 @@ server <- function(input, output, session) {
                 nodes  = rbind(nodes, cbind("id" = addNodesNew, 
                                             "label"= addNodesNew, 
                                             "shape" = "square", 
-                                            "color" = "gray")) %>% distinct()
+                                            "color" = "gray", 
+                                            "size" = 20)) %>% distinct()
               }
               
               STRING$nodes = as.data.frame(nodes, stringsAsFactors= F) 
@@ -1105,7 +1121,9 @@ server <- function(input, output, session) {
                                                  "label"= STRING$initProt, 
                                                  "shape" = "square", 
                                                  "color" = input$colNodes, 
+                                                 "size" = 20,
                                                  stringsAsFactors = F)
+                
                 lien = as.data.frame(lien, stringsAsFactors = F)
                 STRING$links = as.data.frame(cbind(from = STRING$associationProtGenes[lien[, 1]], 
                                                    to = STRING$associationProtGenes[lien[, 2]],
@@ -1119,7 +1137,9 @@ server <- function(input, output, session) {
                 STRING$nodes = cbind.data.frame("id" = STRING$listUnknow, 
                                                 "label"= STRING$listUnknow, 
                                                 "shape" = "square", 
-                                                "color" = "gray", stringsAsFactors = F)
+                                                "color" = "gray",
+                                                "size" = 20, 
+                                                stringsAsFactors = F)
               }
             }
             
@@ -1185,7 +1205,6 @@ server <- function(input, output, session) {
     }
   })
   
-  
   observeEvent(input$coloQS, {
     if(input$coloQS != "" && input$coloQS != "None" ){
       
@@ -1222,14 +1241,34 @@ server <- function(input, output, session) {
     }
   })
   
-  
-  
   observeEvent(input$colNodes, {
     updateSelectInput(session, "colo", selected = "None")
     updateSelectInput(session, "coloL2", selected = "None")
     updateSelectInput(session, "coloAnnot", selected = "None")
     updateSelectInput(session, "coloQS", selected = "None")
     STRING$nodes$color = input$colNodes
+  }
+  ) 
+  
+  observeEvent(input$sizeNodes, {
+      updateSelectInput(session, "sizeBycolumn", selected = "None")
+      STRING$nodes$size = input$sizeNodes
+  }
+  ) 
+
+  observeEvent(input$sizeBycolumn, {
+    if(input$sizeBycolumn != ""  && input$sizeBycolumn != "None"){
+      inter = STRING$importFile
+      rescaleValue =  as.numeric(as.character(inter[, input$sizeBycolumn]))
+      rescaleValue =  round(scales::rescale(rescaleValue, to = c(20, 100)))
+      STRING$nodes$size = 20
+      interList = STRING$associationProtGenes[inter[, input$protColumn]]
+      for(i in 1:length(interList)){
+        STRING$nodes$size[STRING$nodes$id %in% interList[i] ] = rescaleValue[i]
+      }
+    } else {
+        STRING$nodes$size = input$sizeNodes
+    }
   }
   ) 
   
@@ -1246,7 +1285,7 @@ server <- function(input, output, session) {
   )
   
   output$DT_network = renderDT(
-    STRING$dataNetwork, options = list(lengthChange = FALSE)
+    STRING$nodes, options = list(lengthChange = FALSE)
   )
   
   output$DT_Interaction = renderDT(
@@ -1281,10 +1320,11 @@ server <- function(input, output, session) {
       } else {
         selectable = T
       }
+      STRING$nodes = as.data.frame(STRING$nodes)
+      STRING$nodes$size = as.numeric(STRING$nodes$size)
       
       STRING$network = visNetwork(as.data.frame(STRING$nodes), STRING$links) %>%
         visExport() %>%
-        visNodes(size = input$sizeNodes) %>%
         visOptions(nodesIdSelection = selectable,
                    highlightNearest = TRUE) %>%
         visIgraphLayout(layout = input$layout, randomSeed = 123) %>%
@@ -1294,6 +1334,7 @@ server <- function(input, output, session) {
       
       STRING$network
     } else {
+      cat("here null")
       NULL
     }
     
