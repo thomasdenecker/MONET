@@ -19,6 +19,7 @@ library(shinydashboard)
 library(shinydashboardPlus)
 library(shinyWidgets)
 library(shinycssloaders)
+library(shinyhelper)
 library(colourpicker)
 
 # Query
@@ -122,10 +123,16 @@ ui <- dashboardPagePlus(
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
       colourInput("colNodes", "Node color", "orange",allowTransparent = TRUE ), 
-      selectizeInput("colo","Enrichissement coloration", choices = NULL, 
-                     selected = NULL, multiple = FALSE), 
+      selectizeInput("colo","Enrichissement coloration", choices = "None", 
+                     selected = "None", multiple = FALSE), 
       selectizeInput("coloL2",NULL, choices = NULL, 
-                     selected = NULL, multiple = FALSE)
+                     selected = NULL, multiple = FALSE),
+      
+      selectizeInput("coloAnnot","Annotation coloration", choices = "None", 
+                     selected = "None", multiple = FALSE),
+      
+      selectizeInput("coloQS","Quality score coloration", choices = "None", 
+                     selected = "None", multiple = FALSE)
     ),
     
     dropdownBlock(
@@ -211,7 +218,7 @@ ui <- dashboardPagePlus(
               div(id= "importFileDiv",
                   fluidRow(
                     column(3,
-                           h4("Parameters"),
+                           h4("Read parameters"),
                            fileInput("file",label = NULL,
                                      buttonLabel = "Browse...",
                                      placeholder = "No file selected"),align = "center",
@@ -239,23 +246,54 @@ ui <- dashboardPagePlus(
                            h4("File preview"),
                            dataTableOutput(outputId = "contents"))
                   ),
-                  selectizeInput("protColumn", "Select the protein column", 
-                                 width = "500px", choices = NULL, 
-                                 selected = NULL, multiple = FALSE),
                   
-                  selectizeInput("colCoExpression", "Select columns to calculate co-expression", 
-                                 width = "500px", choices = NULL,  
-                                 selected = NULL, multiple = T),
-                  
-                  numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
-                               value = 10, width = "500px"),
-                  selectizeInput("distance", "Co-expression calculation", 
-                                 width = "500px", choices = c("classic", "correlation"),
-                                 selected = "classic",  multiple =F)
-                  
+                  fluidRow(
+                    column(4,h4("Gene or Protein list"),
+                           selectizeInput("protColumn", "Select the protein column", 
+                                          width = "100%", choices = NULL, 
+                                          selected = NULL, multiple = FALSE)),
+                    column(4,h4("Co-expression parameters"),
+                           selectizeInput("colCoExpression", "Select columns to calculate co-expression", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T),
+                           numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
+                                        value = 10, width = "100%"),
+                           selectizeInput("distance", "Co-expression calculation", 
+                                          width = "100%", choices = c("classic", "correlation"),
+                                          selected = "classic",  multiple =F)),
+                    
+                    column(4,h4("Annotation and coloration parameters"),
+                           
+                           selectizeInput("colAbondance", "Select column(s) to to define the size of the nodes as a function of abundance", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T) %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "colAbondanceHelp"),
+                           
+                           selectizeInput("colPvalue", "Select column(s) to colorate by quality score values", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T) %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "colPvalueHelp"),
+                           
+                           selectizeInput("colAnnotation", "select column(s) to color according to an annotation", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T) %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "colAnnotationHelp") 
+                           
+                    )
+                  )
               ),
               
               h4(class = "infoGene","2- Select a species"),
+              helpText("To search the STRING database, select a species from the list."),
               selectizeInput("Species", NULL, width = "500px", choices = NULL, 
                              selected = NULL, multiple = FALSE,
                              options = list(
@@ -263,6 +301,7 @@ ui <- dashboardPagePlus(
                                maxOptions = 100,
                                onInitialize = I('function() { this.setValue(""); }')
                              )),
+              
               h4(class = "infoGene", "3- Select a limits"),
               helpText("Limits the number of interaction partners retrieved per protein (most confident interactions come first)"),
               numericInput(inputId = "limitsNodes", label = NULL, min = 0,
@@ -475,6 +514,8 @@ ui <- dashboardPagePlus(
 server <- function(input, output, session) {
   si <- sessionInfo()
   
+  observe_helpers(session, help_dir = "helpfiles/")
+  
   if(! file.exists("www/data/STRINGspecies.txt")){
     download.file("https://stringdb-static.org/download/species.v11.0.txt", 
                   destfile = "www/data/STRINGspecies.txt"
@@ -550,9 +591,14 @@ server <- function(input, output, session) {
     } else if (input$dataInputType == "file") {
       shinyjs::show(id = "importFileDiv")
       shinyjs::hide(id = "colCoExpression")
+      shinyjs::hide(id = "topSelected")
+      shinyjs::hide(id = "distance")
       shinyjs::hide(id = "contents")
       shinyjs::hide(id = "protColumn")
       shinyjs::hide(id = "protList")
+      shinyjs::hide(id = "colAbondance")
+      shinyjs::hide(id = "colPvalue")
+      shinyjs::hide(id = "colAnnotation")
       reset("file")
       updateNumericInput(session, "limitsNodes", value = 1)
     }
@@ -579,8 +625,13 @@ server <- function(input, output, session) {
   
   observeEvent(input$file,{
     shinyjs::show(id = "colCoExpression")
+    shinyjs::show(id = "distance")
+    shinyjs::show(id = "topSelected")
     shinyjs::show(id = "contents")
     shinyjs::show(id = "protColumn")
+    shinyjs::show(id = "colAbondance")
+    shinyjs::show(id = "colPvalue")
+    shinyjs::show(id = "colAnnotation")
     
     updateSelectizeInput(session, "colCoExpression", 
                          selected = "" )
@@ -595,6 +646,16 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colCoExpression", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
+    updateSelectizeInput(session, "colPvalue", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
+    updateSelectizeInput(session, "colAbondance", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
+    updateSelectizeInput(session, "colAnnotation", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
+    
   })
   
   observeEvent(input$protColumn, {
@@ -602,6 +663,16 @@ server <- function(input, output, session) {
     inter = inter[- which(inter == input$protColumn)]
     updateSelectizeInput(session, "colCoExpression", 
                          choices = inter )
+    
+    updateSelectizeInput(session, "colPvalue", 
+                         choices = inter )
+    
+    updateSelectizeInput(session, "colAbondance", 
+                         choices = inter )
+    
+    updateSelectizeInput(session, "colAnnotation", 
+                         choices = inter )
+    
   })
   
   #=============================================================================
@@ -773,6 +844,14 @@ server <- function(input, output, session) {
             
           }
           updatePickerInput(session, "dataInputType", selected = "list")
+          if(! is.null(input$colAnnotation) && length(input$colAnnotation) != 0){
+            updateSelectInput(session, "coloAnnot",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(input$colAnnotation), 
+                                                   as.character(input$colAnnotation))) ,
+                              selected = "None"
+            )
+          }
         }
         
         if(length(STRING$initProt) > 500){
@@ -1010,10 +1089,10 @@ server <- function(input, output, session) {
               if(exists("lien") && nrow(lien) != 0){
                 
                 STRING$nodes =  cbind.data.frame("id" = STRING$associationProtGenes[STRING$initProt], 
-                                      "label"= STRING$initProt, 
-                                      "shape" = "square", 
-                                      "color" = input$colNodes, 
-                                      stringsAsFactors = F)
+                                                 "label"= STRING$initProt, 
+                                                 "shape" = "square", 
+                                                 "color" = input$colNodes, 
+                                                 stringsAsFactors = F)
                 lien = as.data.frame(lien, stringsAsFactors = F)
                 STRING$links = as.data.frame(cbind(from = STRING$associationProtGenes[lien[, 1]], 
                                                    to = STRING$associationProtGenes[lien[, 2]],
@@ -1025,9 +1104,9 @@ server <- function(input, output, session) {
                                           to= character(), 
                                           source= character())
                 STRING$nodes = cbind.data.frame("id" = STRING$listUnknow, 
-                                     "label"= STRING$listUnknow, 
-                                     "shape" = "square", 
-                                     "color" = "gray", stringsAsFactors = F)
+                                                "label"= STRING$listUnknow, 
+                                                "shape" = "square", 
+                                                "color" = "gray", stringsAsFactors = F)
               }
             }
             
@@ -1049,28 +1128,50 @@ server <- function(input, output, session) {
   })
   
   
-  
   observeEvent(input$colo, {
     if(!is.null(STRING$dataEnrichissement)){
-      
       updateSelectInput(session, "coloL2",
-                        choices = STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description) , 
+                        choices = c("None", as.character(STRING$dataEnrichissement %>% filter(category == input$colo) %>% pull(description))), 
+                        selected = "None"
       )
     }
   })
   
   observeEvent(input$coloL2, {
-    if(input$coloL2 != ""){
+    if(input$coloL2 != "" && input$coloL2 != "None"){
+      updateSelectInput(session, "coloAnnot", selected = "None")
       inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
       inter = unlist(strsplit(as.character(inter), ","))
       STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      STRING$nodes$color = input$colNodes
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None"){
+        STRING$nodes$color = input$colNodes
+      } 
+    }
+  })
+  
+  observeEvent(input$coloAnnot, {
+    if(input$coloAnnot != "" && input$coloAnnot != "None" ){
+      updateSelectInput(session, "coloL2", selected = "None")
+      updateSelectInput(session, "colo", selected = "None")
+      inter = STRING$importFile
+      inter[, input$coloAnnot] = as.logical(inter[, input$coloAnnot])
+      inter = inter[which(inter[, input$coloAnnot]), input$protColumn]
+      inter = STRING$associationProtGenes[inter]
+      STRING$nodes$color = "grey"
+      STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
+    } else {
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None"){
+        STRING$nodes$color = input$colNodes
+      }
     }
   })
   
   observeEvent(input$colNodes, {
+    updateSelectInput(session, "colo", selected = "None")
+    updateSelectInput(session, "coloL2", selected = "None")
+    updateSelectInput(session, "coloAnnot", selected = "None")
     STRING$nodes$color = input$colNodes
   }
   ) 
