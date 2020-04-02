@@ -187,19 +187,12 @@ ui <- dashboardPagePlus(
     tabItems(
       tabItem("import",
               h1("Import data"),
-              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
-               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
-               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
-               amet consectetur. Massa eget egestas purus viverra accumsan in. 
-               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
-               egestas integer. Hac habitasse platea dictumst quisque sagittis 
-               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
-               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
-               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
-               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
-               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
-               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
-               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
+              helpText("In this section, you will fill in a list of proteins or 
+                       genes to study. This list can be accompanied by other 
+                       information via a file such as numerical data to calculate 
+                       a coexpression, quality score,.... The list of proteins will be searched in the 
+                       STRING database and all available data will be used to 
+                       establish a network.", style = "text-align: justify;"),
               h4(class = "infoGene","1- Select an import method"),
               
               pickerInput(
@@ -251,53 +244,52 @@ ui <- dashboardPagePlus(
                   ),
                   
                   fluidRow(
-                    column(4,h4("Gene or Protein list"),
-                           selectizeInput("protColumn", "Select the protein column", 
+                    column(4,h4("Gene or Protein list") %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "protColumnHelp"),
+                           selectizeInput("protColumn", "Select the protein column*", 
                                           width = "100%", choices = NULL, 
-                                          selected = NULL, multiple = FALSE)),
-                    column(4,h4("Co-expression parameters"),
+                                          selected = NULL, multiple = FALSE) ),
+                    
+                    column(4,h4("Co-expression parameters") %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "CoExpressionHelp"),
+                           
                            selectizeInput("colCoExpression", "Select columns to calculate co-expression", 
                                           width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T),
+                                          selected = NULL, multiple = T) ,
+                           
                            numericInput(inputId = "topSelected", label = "Percent distance selected (if co-expression is calculated)", min = 1, max = 100,
                                         value = 10, width = "100%"),
+                           
                            selectizeInput("distance", "Co-expression calculation", 
                                           width = "100%", choices = c("classic", "correlation"),
                                           selected = "classic",  multiple =F)),
                     
-                    column(4,h4("Annotation and coloration parameters"),
-                           
-                           selectizeInput("colNodeSize", "Select column(s) to to define the size of the nodes as a function of abundance", 
-                                          width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T) %>% 
+                    column(4,h4("Annotation and coloration parameters") %>% 
                              helper(icon = "question-circle",
                                     colour = "#3c8dbc",
                                     type = "markdown", 
-                                    content = "colNodeSizeHelp"),
+                                    content = "AnnotandColoHelp"),
+                           selectizeInput("colNodeSize", "Select column(s) to define the size of the nodes as a function of abundance", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T),
                            
                            selectizeInput("colQS", "Select column(s) to colorate by quality score values", 
                                           width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T) %>% 
-                             helper(icon = "question-circle",
-                                    colour = "#3c8dbc",
-                                    type = "markdown", 
-                                    content = "colQSHelp"),
+                                          selected = NULL, multiple = T) ,
                            
                            selectizeInput("colAnnotation", "Select column(s) to color according to an annotation", 
                                           width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T) %>% 
-                             helper(icon = "question-circle",
-                                    colour = "#3c8dbc",
-                                    type = "markdown", 
-                                    content = "colAnnotationHelp"), 
+                                          selected = NULL, multiple = T) , 
                            
                            selectizeInput("colAnnotationReport", "Select annotation column(s) to add in protein/gene report", 
                                           width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T) %>% 
-                             helper(icon = "question-circle",
-                                    colour = "#3c8dbc",
-                                    type = "markdown", 
-                                    content = "colAnnotationHelp") 
+                                          selected = NULL, multiple = T)  
                            
                     )
                   )
@@ -405,19 +397,9 @@ ui <- dashboardPagePlus(
       ),
       tabItem("enrichissement",
               h1("Enrichments"), 
-              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
-               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
-               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
-               amet consectetur. Massa eget egestas purus viverra accumsan in. 
-               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
-               egestas integer. Hac habitasse platea dictumst quisque sagittis 
-               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
-               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
-               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
-               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
-               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
-               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
-               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
+              helpText("From the list of proteins, a search was made in the STRING database. 
+                       It is possible to extract a functional enrichment if available. 
+                       This page regroups the functional enrichment found. ", style = "text-align: justify;"),
               uiOutput("enrichissemntText"),
               uiOutput("enrichissemntUI")
       ),
@@ -451,19 +433,9 @@ ui <- dashboardPagePlus(
       
       tabItem("about",
               h1("Session Information"), 
-              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
-               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
-               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
-               amet consectetur. Massa eget egestas purus viverra accumsan in. 
-               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
-               egestas integer. Hac habitasse platea dictumst quisque sagittis 
-               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
-               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
-               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
-               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
-               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
-               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
-               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
+              helpText("In this section is gathered all the information concerning 
+                       the working environment, the versions of the packages used, ... 
+                       to be able to reproduce the analyses. ", style = "text-align: justify;"),
               h2("R session information and parameters"),
               p("The versions of the R software and Bioconductor packages used for this analysis are listed below. 
               It is important to save them if one wants to re-perform the analysis in the same conditions."),
@@ -479,19 +451,7 @@ ui <- dashboardPagePlus(
       
       tabItem("ref",
               h1("References"), 
-              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
-               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
-               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
-               amet consectetur. Massa eget egestas purus viverra accumsan in. 
-               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
-               egestas integer. Hac habitasse platea dictumst quisque sagittis 
-               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
-               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
-               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
-               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
-               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
-               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
-               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
+              helpText("In this section you will find all the references of the tools used.", style = "text-align: justify;"),
               h3("STRING"), 
               p(HTML('Szklarczyk D, Gable AL, Lyon D, Junge A, Wyder S, Huerta-Cepas J, Simonovic M, Doncheva NT, Morris JH, Bork P, Jensen LJ, von Mering C.',
                      '<br>',
