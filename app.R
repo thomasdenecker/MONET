@@ -283,7 +283,15 @@ ui <- dashboardPagePlus(
                                     type = "markdown", 
                                     content = "colQSHelp"),
                            
-                           selectizeInput("colAnnotation", "select column(s) to color according to an annotation", 
+                           selectizeInput("colAnnotation", "Select column(s) to color according to an annotation", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T) %>% 
+                             helper(icon = "question-circle",
+                                    colour = "#3c8dbc",
+                                    type = "markdown", 
+                                    content = "colAnnotationHelp"), 
+                           
+                           selectizeInput("colAnnotationReport", "Select annotation column(s) to add in protein/gene report", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) %>% 
                              helper(icon = "question-circle",
@@ -358,6 +366,10 @@ ui <- dashboardPagePlus(
                                  htmlOutput("selected_var_CGD", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
                                  htmlOutput("selected_var_SGD", style="display: inline-block; padding-left: 12px; padding-right: 12px;"),
                                  tags$br(),
+                                 tags$br(),
+                                 div(id= "persoAnnotDiv",
+                                     HTML('<p class="infoGene">Personal annotation</p>'),
+                                      htmlOutput("persoAnnot_out")),
                                  tags$br(),
                                  div(id= "PDBDIV", 
                                      htmlOutput("PDB_title"),
@@ -605,6 +617,7 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "colNodeSize")
       shinyjs::hide(id = "colQS")
       shinyjs::hide(id = "colAnnotation")
+      shinyjs::hide(id = "colAnnotationReport")
       reset("file")
       updateNumericInput(session, "limitsNodes", value = 1)
     }
@@ -638,7 +651,7 @@ server <- function(input, output, session) {
     shinyjs::show(id = "colNodeSize")
     shinyjs::show(id = "colQS")
     shinyjs::show(id = "colAnnotation")
-    
+    shinyjs::show(id = "colAnnotationReport")
     updateSelectizeInput(session, "colCoExpression", 
                          selected = "" )
   })
@@ -661,7 +674,9 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colAnnotation", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
-    
+    updateSelectizeInput(session, "colAnnotationReport", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+
   })
   
   observeEvent(input$protColumn, {
@@ -1564,6 +1579,22 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "selected_var_CGD")
       NULL
     }
+  })
+  
+  output$persoAnnot_out<- renderUI({
+    if(! is.null(input$colAnnotationReport) && length(input$colAnnotationReport) != 0){
+      pos = which(STRING$associationProtGenes == input$network_selected)
+      if(length(pos) != 0){
+        gene = names(STRING$associationProtGenes)[pos]
+        pos2 = which(STRING$importFile[, input$protColumn] == gene)
+        HTML(paste(paste0("<p><b>", input$colAnnotationReport, "</b> : ",STRING$importFile[pos2, input$colAnnotationReport],"</p>"), collapse = ""))
+      }else {
+        HTML("<p><b>No personal information available.</b></p>")
+      }
+    } else {
+      HTML("<p><b>No personal information available.</b></p>")
+    }
+  
   })
   
   output$selected_var_SGD<- renderUI({
