@@ -9,6 +9,7 @@ params:
   description: NA
   species : NA
   date: NA
+  network : NA
 
 output:
   html_document:
@@ -30,6 +31,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #### Species 
 `r params$species`
+
+#### Graph 
+```{r echo = F}
+params$network
+```
 
 # Functionnal annotation
 

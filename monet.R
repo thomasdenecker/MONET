@@ -123,7 +123,7 @@ ui <- dashboardPagePlus(
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
       colourInput("colNodes", "Node color", "orange",allowTransparent = TRUE ), 
-      selectizeInput("colo","Enrichissement coloration", choices = "None", 
+      selectizeInput("colo","Enrichment coloration", choices = "None", 
                      selected = "None", multiple = FALSE), 
       selectizeInput("coloL2",NULL, choices = NULL, 
                      selected = NULL, multiple = FALSE),
@@ -392,7 +392,7 @@ ui <- dashboardPagePlus(
                 ))
       ),
       tabItem("enrichissement",
-              h1("Enrichissement"), 
+              h1("Enrichments"), 
               helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
                eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
                sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
@@ -411,26 +411,29 @@ ui <- dashboardPagePlus(
       ),
       tabItem("rawdata",
               h1("Raw data"), 
-              helpText("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do 
-               eiusmod tempor incididunt ut labore et dolore magna aliqua. Elit 
-               sed vulputate mi sit amet. Interdum posuere lorem ipsum dolor sit 
-               amet consectetur. Massa eget egestas purus viverra accumsan in. 
-               Dolor sit amet consectetur adipiscing elit ut. Fames ac turpis 
-               egestas integer. Hac habitasse platea dictumst quisque sagittis 
-               purus sit amet. Integer malesuada nunc vel risus commodo viverra 
-               maecenas accumsan. Tempus egestas sed sed risus pretium quam. 
-               Nibh tortor id aliquet lectus proin nibh nisl condimentum. Mauris 
-               commodo quis imperdiet massa tincidunt nunc pulvinar sapien et. 
-               Sollicitudin aliquam ultrices sagittis orci a. Platea dictumst 
-               quisque sagittis purus sit amet. Nulla at volutpat diam ut venenatis 
-               tellus in metus. Amet porttitor eget dolor morbi non arcu risus.", style = "text-align: justify;"),
-              h2("Proteins to genes"), 
+              helpText("You will find in this section all the files used and 
+              generated during an explanation: the RAW file (if the import was
+              done by file), the conversion to STRING name, the information 
+              available in STRING, the table of nodes and links allowing the 
+              construction of the graph.
+                       
+              You can click on the following button to download all these tables 
+              in an archive. ", style = "text-align: justify;"),
+              
+              downloadButton("rawDataXLSX", "Excel (.xlsx)", icon = icon("file-export")),
+              
+              h2("Data from file"), 
+              htmlOutput("rawData_text"),
+              DTOutput('rawData_DT'),
+              h2("Proteins to genes (via STRING)"), 
               DTOutput('PI'),
-              h2("Information for all nodes"), 
+              h2("Information for all nodes (via STRING)"), 
               DTOutput('DT_infoAll'),
-              h2("Network table"),
+              h2("Enrichissemnt (via STRING)"), 
+              DTOutput('DT_enrichissement'),
+              h2("Node table"),
               DTOutput('DT_network'),
-              h2("Interaction"),
+              h2("Edge table"),
               DTOutput('DT_Interaction')
       ),
       
@@ -561,7 +564,7 @@ server <- function(input, output, session) {
                      menuItem("Import data", tabName = "import", icon = icon("file-import")),
                      menuItem("Overview", tabName = "overview", icon = icon("file-import")),
                      menuItem("Graph", tabName = "graph", icon = icon("project-diagram") ),
-                     menuItem("Enrichissement", tabName = "enrichissement", icon = icon("search")),
+                     menuItem("Enrichments", tabName = "enrichissement", icon = icon("search")),
                      menuItem("Raw data", tabName = "rawdata", icon = icon("file")),
                      menuItem("About", tabName = "about", icon = icon("cubes")),
                      menuItem("References", tabName = "ref", icon = icon("book"))
@@ -782,18 +785,17 @@ server <- function(input, output, session) {
           STRING$initProt = unlist(strsplit(x =input$protList,split = '[ \r\n]' ) )
           shinyjs::hide(id = "DistriDiv")
         } else if(input$dataInputType == "file"){
-          shinyjs::show(id = "DistriDiv")
           STRING$importFile <- read.csv2(input$file$datapath,
                                          header = as.logical(input$header),
                                          sep = input$sep,
                                          quote = input$quote, 
                                          stringsAsFactors = F
           )
-          
+          shinyjs::hide(id = "DistriDiv")
           STRING$initProt = STRING$importFile[, input$protColumn]
           
           if(! is.null(input$colCoExpression) && length(input$colCoExpression) != 0){
-            
+            shinyjs::show(id = "DistriDiv")
             updateSelectizeInput(session, "SelectHisto", 
                                  choices = input$colCoExpression, 
                                  selected = input$colCoExpression[1])
@@ -992,9 +994,9 @@ server <- function(input, output, session) {
                 filter(preferredName %in% listProtInteraction)
               
               #---------------------------------------------------------------------------
-              # Enrichissement
+              # Enrichments 
               #---------------------------------------------------------------------------
-              incProgress(1/m, detail = "Calculate enrichissement")
+              incProgress(1/m, detail = "Calculate enrichments")
               method = "enrichment"
               parametersEnrichment = paste0( "identifiers=", paste0(listProtInteraction,collapse = "%0d"), 
                                              "&species=",STRING$ourSpecies,
@@ -1005,9 +1007,9 @@ server <- function(input, output, session) {
               STRING$dataEnrichissement = read.csv2(request_url, sep ="\t", header = T)
               
               #---------------------------------------------------------------------------
-              # Category enrichissement
+              # Category enrichments 
               #---------------------------------------------------------------------------
-              incProgress(1/m, detail = "Category enrichissement")
+              incProgress(1/m, detail = "Category enrichments")
               
               updateSelectInput(session, "colo",
                                 choices = c("None" = "None", 
@@ -1251,11 +1253,11 @@ server <- function(input, output, session) {
   ) 
   
   observeEvent(input$sizeNodes, {
-      updateSelectInput(session, "sizeBycolumn", selected = "None")
-      STRING$nodes$size = input$sizeNodes
+    updateSelectInput(session, "sizeBycolumn", selected = "None")
+    STRING$nodes$size = input$sizeNodes
   }
   ) 
-
+  
   observeEvent(input$sizeBycolumn, {
     if(input$sizeBycolumn != ""  && input$sizeBycolumn != "None"){
       inter = STRING$importFile
@@ -1267,10 +1269,76 @@ server <- function(input, output, session) {
         STRING$nodes$size[STRING$nodes$id %in% interList[i] ] = rescaleValue[i]
       }
     } else {
-        STRING$nodes$size = input$sizeNodes
+      STRING$nodes$size = input$sizeNodes
     }
   }
   ) 
+  
+  output$rawDataXLSX <- downloadHandler(
+    filename = function() {
+      paste0("RawData_", as.character(format(Sys.time(), "%Y_%m_%d__%H_%M_%S")) ,".xlsx")
+    },
+    content = function(file) {
+      si = sessionInfo()
+      inter = rbind(cbind(names(unlist(si$R.version)),unlist(si$R.version)),
+                    Local = si$locale,
+                    Running = si$running,
+                    "Base packages" = paste(si$basePkgs,collapse = ", "),
+                    "Other packages" = paste(si$otherPkgs,collapse = ", ")
+      )
+      colnames(inter) = c("Name", "Information")
+      write.xlsx(inter, file = file, sheetName = "Session", 
+                 row.names = F, append = FALSE)
+      
+      if(!is.null(STRING$importFile)){
+        write.xlsx(STRING$importFile, file = file,
+                   sheetName = "Raw data", row.names = F, append = TRUE)
+      }
+      
+      if(!is.null(STRING$dataInfo)){
+        write.xlsx(STRING$dataInfo, file = file, 
+                   sheetName="Association ", row.names = F, append=TRUE)
+      }
+      
+      if(!is.null(STRING$dataInfoAll)){
+        write.xlsx(STRING$dataInfoAll, file = file, 
+                   sheetName="All informations ", row.names = F, append=TRUE)
+      }
+      
+      if(!is.null(STRING$dataEnrichissement)){
+        write.xlsx(STRING$dataEnrichissement, file = file,
+                   sheetName="Enrichments",row.names = F, append=TRUE)
+      }
+      
+      if(!is.null(STRING$nodes)){
+        write.xlsx(STRING$nodes, file = file,
+                   sheetName="Nodes", row.names = F, append=TRUE)
+      }
+      
+      if(!is.null(STRING$links)){
+        write.xlsx(STRING$links, file = file,
+                   sheetName="Edges", row.names = F, append=TRUE)
+      }
+    }
+  )
+  
+  output$rawData_DT = renderDT({
+    if(!is.null(STRING$importFile)){
+      STRING$importFile
+    } else {
+      NULL
+    }
+  }
+  , options = list(lengthChange = FALSE)
+  )
+  
+  output$rawData_text <- renderUI({
+    if(is.null(STRING$importFile)){
+      HTML("<b>No file imported </b>")
+    } else {
+      NULL
+    }
+  })
   
   output$PI = renderDT(
     STRING$dataInfo, options = list(lengthChange = FALSE)
@@ -1997,7 +2065,7 @@ server <- function(input, output, session) {
   )
   
   #-----------------------------------------------------------------------------
-  # Enrichissement
+  # enrichments 
   #-----------------------------------------------------------------------------
   
   output$enrichissemntText <- renderUI({
@@ -2286,7 +2354,8 @@ server <- function(input, output, session) {
                      annotation = STRING$annotation,
                      gene = input$network_selected,
                      description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
-                     species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected])
+                     species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]),
+                     network = STRING$network
       )
       rmarkdown::render("report.Rmd", output_file = file,
                         params = params,
