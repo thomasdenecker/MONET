@@ -347,6 +347,8 @@ ui <- dashboardPagePlus(
                                  htmlOutput("selected_var_gene"), 
                                  htmlOutput("selected_var_description"),
                                  htmlOutput("selected_var_species"),
+                                 htmlOutput("selected_var_sequence"),
+                                 htmlOutput("selected_var_sequenceAnnot"),
                                  tags$br(),
                                  HTML('<p class="infoGene">Link external databases</p>'),
                                  htmlOutput("selected_var_refseq", style="display: inline-block;"),
@@ -1394,6 +1396,15 @@ server <- function(input, output, session) {
   output$selected_var_species <- renderText({ 
     HTML(paste("<b>Species </b>:<i>", unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]), "</i>"))
   })
+  
+  output$selected_var_sequence <- renderText({ 
+    HTML(paste("<b>Sequence </b>", STRING$sequence))
+  })
+  
+  output$selected_var_sequenceAnnot <- renderText({ 
+    HTML(paste("<b>Sequence annotation</b>", STRING$sequenceAnnot))
+  })
+  
   #=============================================================================
   # Link external databases
   #=============================================================================
@@ -1706,6 +1717,20 @@ server <- function(input, output, session) {
             }
           }
           STRING$PDB = final
+          
+          sequence = read.fasta(paste0("https://www.uniprot.org/uniprot/",STRING$UniprotID,".fasta"))
+          sequenceAnnot =  gsub(attr(sequence[[1]],"name"), "", attr(sequence[[1]],"Annot"))
+          sequenceAnnot = gsub(">", "", sequenceAnnot)
+          sequenceAnnot = gsub("\\|", "", sequenceAnnot)
+          if(substring(sequenceAnnot, 1, 1) == " "){
+            sequenceAnnot = substring(sequenceAnnot, 2, nchar(sequenceAnnot))
+          }
+          
+          sequence = paste("<p style ='font-family: monospace;'>", attr(sequence[[1]],"name"), "<br>", 
+                paste(strsplit(toupper(paste(sequence[[1]], collapse = "")) , "(?<=.{60})", perl = TRUE)[[1]], collapse = "<br>"), "</p>")
+          
+          STRING$sequence = sequence
+          STRING$sequenceAnnot = paste("<p style ='font-family: monospace;'>",sequenceAnnot, "</p>")
           
           STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
           STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
@@ -2346,7 +2371,9 @@ server <- function(input, output, session) {
                      gene = input$network_selected,
                      description = unique(STRING$dataInfoAll$annotation[STRING$dataInfoAll$preferredName == input$network_selected]),
                      species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]),
-                     network = STRING$network
+                     network = STRING$network,
+                     sequence = STRING$sequence,
+                     sequenceAnnot = STRING$sequenceAnnot
       )
       rmarkdown::render("report.Rmd", output_file = file,
                         params = params,

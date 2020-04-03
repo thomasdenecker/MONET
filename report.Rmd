@@ -10,6 +10,8 @@ params:
   species : NA
   date: NA
   network : NA
+  sequence : NA
+  sequenceAnnot : NA
 
 output:
   html_document:
@@ -31,6 +33,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #### Species 
 `r params$species`
+
+#### Sequence 
+`r params$sequence`
+
+#### Sequence annotation
+`r params$sequenceAnnot`
 
 #### Graph 
 ```{r echo = F}
