@@ -26,6 +26,7 @@ library(colourpicker)
 library(httr)
 library(jsonlite)
 library(xml2)
+library(seqinr)
 
 # Visualisation
 library(DT)
