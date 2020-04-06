@@ -237,7 +237,13 @@ ui <- dashboardPagePlus(
                                         choices = c(None = "",
                                                     "Double Quote" = '"',
                                                     "Single Quote" = "'"),
-                                        selected = "", inline=T)
+                                        selected = "", inline=T),
+                           
+                           # Input: Numeric separator ----
+                           radioButtons("decimalSep", "Decimal separator",
+                                        choices = c("," = ",",
+                                                    "." = "."),
+                                        selected = ".", inline=T)
                     ), 
                     column(9, 
                            h4("File preview"),
@@ -350,6 +356,11 @@ ui <- dashboardPagePlus(
                                  htmlOutput("selected_var_species"),
                                  htmlOutput("selected_var_sequence"),
                                  htmlOutput("selected_var_sequenceAnnot"),
+                                 htmlOutput("selected_var_interFunctionUniprot"),
+                                 htmlOutput("selected_var_interLocalisationUniprot"),
+                                 htmlOutput("selected_var_recommendedName"),
+                                 htmlOutput("selected_var_shortName"),
+                                 htmlOutput("selected_var_alternativeName"), 
                                  tags$br(),
                                  HTML('<p class="infoGene">Link external databases</p>'),
                                  htmlOutput("selected_var_refseq", style="display: inline-block;"),
@@ -600,6 +611,7 @@ server <- function(input, output, session) {
                           header = as.logical(input$header),
                           sep = input$sep,
                           quote = input$quote,
+                          dec = input$decimalSep, 
                           nrows=5, stringsAsFactors = F
     )
     
@@ -773,6 +785,7 @@ server <- function(input, output, session) {
                                          header = as.logical(input$header),
                                          sep = input$sep,
                                          quote = input$quote, 
+                                         dec = input$decimalSep, 
                                          stringsAsFactors = F
           )
           shinyjs::hide(id = "DistriDiv")
@@ -1207,11 +1220,11 @@ server <- function(input, output, session) {
       interList = STRING$associationProtGenes[interList]
       STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFFFFF" 
       
-      interList = inter[which(inter[, input$coloQS] <= 0.05 && inter[, input$coloQS] > 0.01 ), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] <= 0.05 & inter[, input$coloQS] > 0.01 ), input$protColumn]
       interList = STRING$associationProtGenes[interList]
       STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFA07A" 
       
-      interList = inter[which(inter[, input$coloQS] <= 0.01 && inter[, input$coloQS] > 0.001), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] <= 0.01 & inter[, input$coloQS] > 0.001), input$protColumn]
       interList = STRING$associationProtGenes[interList]
       STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FF0000" 
       
@@ -1412,6 +1425,26 @@ server <- function(input, output, session) {
   
   output$selected_var_sequenceAnnot <- renderText({ 
     HTML(paste("<b>Sequence annotation</b>", STRING$sequenceAnnot))
+  })
+  
+  output$selected_var_interFunctionUniprot <- renderText({ 
+    HTML(paste("<b>Function (Uniprot)</b>", STRING$interFunctionUniprot))
+  })
+  
+  output$selected_var_interLocalisationUniprot <- renderText({ 
+    HTML(paste("<b>Localisation (Uniprot)</b>", STRING$interLocalisationUniprot))
+  })
+  
+  output$selected_var_recommendedName <- renderText({ 
+    HTML(paste("<b>Recommended name (Uniprot)</b>", STRING$recommendedName))
+  })
+  
+  output$selected_var_shortName <- renderText({ 
+    HTML(paste("<b>Short name (Uniprot)</b>", STRING$shortName))
+  })
+  
+  output$selected_var_alternativeName <- renderText({ 
+    HTML(paste("<b>Alternative name (Uniprot)</b>", STRING$alternativeName))
   })
   
   #=============================================================================
@@ -1620,6 +1653,11 @@ server <- function(input, output, session) {
     STRING$annotation = NULL
     STRING$sequence = NULL
     STRING$sequenceAnnot = NULL
+    STRING$interFunctionUniprot = NULL
+    STRING$interLocalisationUniprot = NULL
+    STRING$recommendedName = NULL
+    STRING$shortName= NULL
+    STRING$alternativeName = NULL
     
     #---------------------------------------------------------------------------
     # Show step 
@@ -1761,6 +1799,19 @@ server <- function(input, output, session) {
           STRING$sequence = sequence
           STRING$sequenceAnnot = paste("<p style ='font-family: monospace;'>",sequenceAnnot, "</p>")
           
+          # Extract sup info from uniprot
+          x = read_xml(paste0("https://www.uniprot.org/uniprot/",STRING$UniprotID,".xml"))
+          xml_ns_strip(x)
+          interComment = xml_find_all(x, '//comment')
+          STRING$interFunctionUniprot = xml_text(interComment[which(xml_attr(interComment, "type") == "function")])
+          STRING$interLocalisationUniprot = paste0(xml_text(xml_find_all(interComment[which(xml_attr(interComment, "type") == "subcellular location")],".//location")), collapse = ", ")
+          
+          STRING$recommendedName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//fullName"))
+          STRING$shortName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//shortName"))
+          STRING$alternativeName =  paste0(xml_text(xml_find_all(xml_find_all(x, '//alternativeName'), ".//fullName")), collapse = ", ")
+          
+
+       
           STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
           STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
           
