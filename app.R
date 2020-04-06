@@ -52,7 +52,7 @@ output_format = "tsv"
 idMappingUniprot <- function(from, to, query, format='tab'){
   r = GET("https://www.uniprot.org/uploadlists/", 
           query = list("from" = from, "to" = to ,'format' = 'tab', 'query'= query))
-  return(readr:::read_tsv(r$content))
+  return(suppressMessages(readr:::read_tsv(r$content)))
 }
 
 ################################################################################
@@ -60,22 +60,22 @@ idMappingUniprot <- function(from, to, query, format='tab'){
 ################################################################################
 
 jsCode <- '
-  shinyjs.Visu3D = function(params) {
-    // Create NGL Stage object
-    const viewportDiv = document.getElementById("viewport");
-    viewportDiv.innerHTML = "";
-    var stage = new NGL.Stage( "viewport" );
-    str1 = "rcsb://" ;
+shinyjs.Visu3D = function(params) {
+// Create NGL Stage object
+const viewportDiv = document.getElementById("viewport");
+viewportDiv.innerHTML = "";
+var stage = new NGL.Stage( "viewport" );
+str1 = "rcsb://" ;
 
-    // Handle window resizing
-    window.addEventListener( "resize", function( event ){
-        stage.handleResize();
-    }, false );
-    
-    // Load PDB
-    stage.loadFile( str1.concat("", params) , { defaultRepresentation: true } );
+// Handle window resizing
+window.addEventListener( "resize", function( event ){
+stage.handleResize();
+}, false );
 
-  }
+// Load PDB
+stage.loadFile( str1.concat("", params) , { defaultRepresentation: true } );
+
+}
 '
 
 ################################################################################
@@ -171,17 +171,17 @@ ui <- dashboardPagePlus(
     tags$head(tags$script(HTML("document.title = 'MONET';"))),
     tags$head(tags$script( src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.32/dist/ngl.js")), 
     tags$head(tags$style(type = "text/css", "
-               canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
-               #networkDropdown_edges .label { display : none;}
-               #networkDropdown_nodes .label { display : none;}
-               #networkDropdown_network .label { display : none;}
-               
-               #networkDropdown_edges .menu { padding-inline-start:0px;}
-               #networkDropdown_nodes .menu { padding-inline-start:0px;}
-               #networkDropdown_network .menu { padding-inline-start:0px;}
-               ")),
+                         canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
+                         #networkDropdown_edges .label { display : none;}
+                         #networkDropdown_nodes .label { display : none;}
+                         #networkDropdown_network .label { display : none;}
+                         
+                         #networkDropdown_edges .menu { padding-inline-start:0px;}
+                         #networkDropdown_nodes .menu { padding-inline-start:0px;}
+                         #networkDropdown_network .menu { padding-inline-start:0px;}
+                         ")),
     tags$head(HTML('<link rel="stylesheet" type="text/css"
-                                     href="style.css" />')), 
+                   href="style.css" />')), 
     useShinyjs(),
     useShinyalert(),
     extendShinyjs(text = jsCode,functions = "Visu3D"),
@@ -327,7 +327,7 @@ ui <- dashboardPagePlus(
                     box(width = 6,title = 'Value distributions', solidHeader =T, status = "primary", 
                         plotlyOutput("HistoValues"),
                         tags$style("#divSelect .selectize-control {margin-bottom: 0px !important;}
-                                #divSelect .form-group {margin-bottom: 3px !important;margin-top: 3px !important;}"), 
+                                           #divSelect .form-group {margin-bottom: 3px !important;margin-top: 3px !important;}"), 
                         div(id = "divSelect", selectizeInput(inputId = "SelectHisto", NULL, width = "100%", choices = NULL, 
                                                              selected = NULL, multiple = FALSE) )
                     )
@@ -364,7 +364,7 @@ ui <- dashboardPagePlus(
                                  tags$br(),
                                  div(id= "persoAnnotDiv",
                                      HTML('<p class="infoGene">Personal annotation</p>'),
-                                      htmlOutput("persoAnnot_out")),
+                                     htmlOutput("persoAnnot_out")),
                                  tags$br(),
                                  div(id= "PDBDIV", 
                                      htmlOutput("PDB_title"),
@@ -395,6 +395,11 @@ ui <- dashboardPagePlus(
                                  HTML('<p class="infoGene">Generate a report</p>'),
                                  helpText("All the information available on the page is gathered in an HTML page. This page is downloaded when you click on the button below."),
                                  downloadButton("reportBTN", "Generate", icon = icon("file-export"))
+                             ), 
+                             div(id= "NoInfoZone", 
+                                 HTML('<p class="infoGene" style="background-color:red;" >General information</p>'),
+                                 htmlOutput("selected_var_gene2"),
+                                 HTML("<p><b>No information available in STRING <u>AND</u> Uniprot.</b></p>")
                              ))
                 ))
       ),
@@ -409,13 +414,13 @@ ui <- dashboardPagePlus(
       tabItem("rawdata",
               h1("Raw data"), 
               helpText("You will find in this section all the files used and 
-              generated during an explanation: the RAW file (if the import was
-              done by file), the conversion to STRING name, the information 
-              available in STRING, the table of nodes and links allowing the 
-              construction of the graph.
+                       generated during an explanation: the RAW file (if the import was
+                       done by file), the conversion to STRING name, the information 
+                       available in STRING, the table of nodes and links allowing the 
+                       construction of the graph.
                        
-              You can click on the following button to download all these tables 
-              in an archive. ", style = "text-align: justify;"),
+                       You can click on the following button to download all these tables 
+                       in an archive. ", style = "text-align: justify;"),
               
               downloadButton("rawDataXLSX", "Excel (.xlsx)", icon = icon("file-export")),
               
@@ -441,7 +446,7 @@ ui <- dashboardPagePlus(
                        to be able to reproduce the analyses. ", style = "text-align: justify;"),
               h2("R session information and parameters"),
               p("The versions of the R software and Bioconductor packages used for this analysis are listed below. 
-              It is important to save them if one wants to re-perform the analysis in the same conditions."),
+                It is important to save them if one wants to re-perform the analysis in the same conditions."),
               uiOutput("sessionText"),
               h2("Database and API version"),
               h4("STRING"), 
@@ -507,7 +512,7 @@ server <- function(input, output, session) {
                             sep ="\t", stringsAsFactors = F)
   
   updateSelectInput(session, "Species",
-                    choices = setNames(speciesSTRING[,1],speciesSTRING[,3] ) , 
+                    choices = setNames(speciesSTRING[,1],speciesSTRING[,3] )
                     
   )
   
@@ -526,6 +531,7 @@ server <- function(input, output, session) {
   # Hide zone 
   #=============================================================================
   shinyjs::hide(id = "geneZone")
+  shinyjs::hide(id = "NoInfoZone")
   shinyjs::hide(id = "PDBDIV")
   
   #=============================================================================
@@ -639,7 +645,7 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, "colAnnotationReport", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
-
+    
   })
   
   observeEvent(input$protColumn, {
@@ -1380,14 +1386,16 @@ server <- function(input, output, session) {
       
       STRING$network
     } else {
-      cat("here null")
       NULL
     }
     
   })
   
   output$selected_var_gene <- renderUI({
-    HTML(paste("<b>Gene name </b>:", input$network_selected))
+    HTML(paste("<b>Protein / Gene name </b>:", input$network_selected))
+  })
+  output$selected_var_gene2 <- renderUI({
+    HTML(paste("<b>Protein / Gene name </b>:", input$network_selected))
   })
   
   output$selected_var_description <- renderText({ 
@@ -1413,13 +1421,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$refseq) && length(STRING$refseq[,2]) != 0){
       if(length(STRING$refseq[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/refseq_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.ncbi.nlm.nih.gov/protein/',unique(STRING$refseq[,2]),'" target="_blank">',unique(STRING$refseq[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/refseq_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.ncbi.nlm.nih.gov/protein/',unique(STRING$refseq[,2]),'" target="_blank">',unique(STRING$refseq[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?cgr:',unique(STRING$refseq[,2]),'" target="_blank"><img src="img/refseq_logo_small.png" height="20px"></a>'))
       }
@@ -1433,13 +1441,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linkKEGG) && length(STRING$linkKEGG[,2]) != 0){
       if(length(STRING$linkKEGG[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/kegg_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank">',unique(STRING$linkKEGG[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/kegg_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank">',unique(STRING$linkKEGG[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.genome.jp/dbget-bin/www_bget?',unique(STRING$linkKEGG[,2]),'" target="_blank"><img src="img/kegg_logo_small.png" height="20px"></a>'))
       }
@@ -1454,13 +1462,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$UniprotID) && length(STRING$UniprotID) != 0 && !is.na(STRING$UniprotID)){
       if(length(STRING$UniprotID) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/uniprot_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank">',unique(STRING$UniprotID),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/uniprot_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank">',unique(STRING$UniprotID),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.uniprot.org/uniprot/',unique(STRING$UniprotID),'" target="_blank"><img src="img/uniprot_logo_small.png" height="20px"></a>'))
       }
@@ -1475,13 +1483,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linkGeneCard) && length(STRING$linkGeneCard[,2]) != 0){
       if(length(STRING$linkGeneCard[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/genecards_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank">',unique(STRING$linkGeneCard[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/genecards_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank">',unique(STRING$linkGeneCard[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.genecards.org/cgi-bin/carddisp.pl?gene=',unique(STRING$linkGeneCard[,2]),'" target="_blank"><img src="img/genecards_logo_small.png" height="20px"></a>'))
       }
@@ -1497,13 +1505,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linkensembl) && length(STRING$linkensembl[,2]) != 0){
       if(length(STRING$linkensembl[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/ensembl_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank">',unique(STRING$linkensembl[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/ensembl_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank">',unique(STRING$linkensembl[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="http://oct2014.archive.ensembl.org/Homo_sapiens/Gene/Summary?db=core;g=',unique(STRING$linkensembl[,2]),'" target="_blank"><img src="img/ensembl_logo_small.png" height="20px"></a>'))
       }
@@ -1517,13 +1525,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linknextprot) && length(STRING$linknextprot[,2]) != 0){
       if(length(STRING$linknextprot[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/nextprot_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/',unique(STRING$linknextprot[,2]),'/" target="_blank">',unique(STRING$linknextprot[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/nextprot_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/',unique(STRING$linknextprot[,2]),'/" target="_blank">',unique(STRING$linknextprot[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.nextprot.org/entry/NX_P06493/',unique(STRING$linknextprot[,2]),'/" target="_blank"><img src="img/nextprot_logo_small.png" height="20px"></a>'))
       }
@@ -1537,13 +1545,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linkCGD) && length(STRING$linkCGD[,2]) != 0){
       if(length(STRING$linkCGD[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/CGD_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank">',unique(STRING$linkCGD[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/CGD_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank">',unique(STRING$linkCGD[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="http://www.candidagenome.org/cgi-bin/locus.pl?dbid=',unique(STRING$linkCGD[,2]),'" target="_blank"><img src="img/CGD_logo_small.png" height="20px"></a>'))
       }
@@ -1566,7 +1574,7 @@ server <- function(input, output, session) {
     } else {
       HTML("<p><b>No personal information available.</b></p>")
     }
-  
+    
   })
   
   output$selected_var_SGD<- renderUI({
@@ -1574,13 +1582,13 @@ server <- function(input, output, session) {
     if(!is.null(STRING$linkSGD) && length(STRING$linkSGD[,2]) != 0){
       if(length(STRING$linkSGD[,2]) != 1){
         HTML(paste0('<div class="dropdown">
-        <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <img src="img/SGD_logo_small.png" height="20px">
-        </button>
-        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-        ',paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank">',unique(STRING$linkSGD[,2]),'</a>', collapse="<br>"),'
-        </div>
-      </div>', collapse=""))
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <img src="img/SGD_logo_small.png" height="20px">
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    ',paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank">',unique(STRING$linkSGD[,2]),'</a>', collapse="<br>"),'
+                    </div>
+                    </div>', collapse=""))
       }else {
         HTML(paste0('<a class="dropdown-item" href="https://www.yeastgenome.org/locus/',unique(STRING$linkSGD[,2]),'" target="_blank"><img src="img/SGD_logo_small.png" height="20px"></a>'))
       }
@@ -1609,6 +1617,9 @@ server <- function(input, output, session) {
     STRING$linknextprot = NULL
     STRING$linkCGD = NULL
     STRING$linkSGD = NULL
+    STRING$annotation = NULL
+    STRING$sequence = NULL
+    STRING$sequenceAnnot = NULL
     
     #---------------------------------------------------------------------------
     # Show step 
@@ -1642,33 +1653,50 @@ server <- function(input, output, session) {
       STRING$date = format(Sys.time(), "%Y_%m_%d__%H_%M_%S")
       m = 4
       withProgress(message = 'Extraction in progress', value = 0, {
-        
-        incProgress(1/m, detail = "Functionnal annotation")
-        method = "functional_annotation"
-        parametersEnrichment = paste0( "identifiers=", input$network_selected, 
-                                       "&species=",STRING$ourSpecies,
-                                       collapse = "")
-        
-        request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
-        request_url = paste0(request_url, parametersEnrichment, collapse = "")
-        STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
+        if(! input$network_selected %in% STRING$listUnknow){
+          incProgress(1/m, detail = "Functionnal annotation")
+          method = "functional_annotation"
+          parametersEnrichment = paste0( "identifiers=", input$network_selected, 
+                                         "&species=",STRING$ourSpecies,
+                                         collapse = "")
+          
+          request_url = paste0(string_api_url, "/", output_format ,"/", method, "?", collapse = "")
+          request_url = paste0(request_url, parametersEnrichment, collapse = "")
+          STRING$annotation = read.csv2(request_url, sep ="\t", header = T)
+          
+          incProgress(1/m, detail = "Get Uniprot ID")
+          
+          STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
+          STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
+          if(nrow(STRING$UniprotID) != 0){
+            STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+          } else {
+            STRING$UniprotID = NA
+          }
+        } else {
+          STRING$UniprotID = as.matrix(idMappingUniprot("ID", "ID", input$network_selected, "tab")) 
+          if(nrow(STRING$UniprotID) != 0){
+            STRING$UniprotID = as.character(STRING$UniprotID[1,2])
+            if( STRING$UniprotID  == "OBSOLETE"){
+              STRING$UniprotID = NA
+            }
+          } else {
+            STRING$UniprotID = NA
+          }
+        }
         
         incProgress(1/m, detail = "Print zone")
         if(!is.null(STRING$annotation) && nrow(STRING$annotation) != 0){
           shinyjs::show(id = "geneZone")
+          shinyjs::hide(id = "NoInfoZone")
         } else {
-          shinyjs::hide(id = "geneZone")
-        }
-        
-        incProgress(1/m, detail = "Get Uniprot ID")
-        
-        STRING$ID = unique(STRING$dataInfoAll$stringId[STRING$dataInfoAll$preferredName == input$network_selected])
-        cat(STRING$ID)
-        STRING$UniprotID = as.matrix(idMappingUniprot("STRING_ID", "ID", STRING$ID, "tab"))
-        if(nrow(STRING$UniprotID) != 0){
-          STRING$UniprotID = as.character(STRING$UniprotID[1,2])
-        } else {
-          STRING$UniprotID = NA
+          if(!is.na(STRING$UniprotID)){
+            shinyjs::show(id = "geneZone")
+            shinyjs::hide(id = "NoInfoZone")
+          } else {
+            shinyjs::hide(id = "geneZone")
+            shinyjs::show(id = "NoInfoZone")
+          }
         }
         
         # Quick GO 
@@ -1728,7 +1756,7 @@ server <- function(input, output, session) {
           }
           
           sequence = paste("<p style ='font-family: monospace;'>", attr(sequence[[1]],"name"), "<br>", 
-                paste(strsplit(toupper(paste(sequence[[1]], collapse = "")) , "(?<=.{60})", perl = TRUE)[[1]], collapse = "<br>"), "</p>")
+                           paste(strsplit(toupper(paste(sequence[[1]], collapse = "")) , "(?<=.{60})", perl = TRUE)[[1]], collapse = "<br>"), "</p>")
           
           STRING$sequence = sequence
           STRING$sequenceAnnot = paste("<p style ='font-family: monospace;'>",sequenceAnnot, "</p>")
@@ -1736,7 +1764,8 @@ server <- function(input, output, session) {
           STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
           STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
           
-          speciesInter = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]) 
+          speciesInter = speciesSTRING[which(speciesSTRING[,1] == STRING$ourSpecies), 3]
+          # speciesInter = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]) 
           
           if(speciesInter == "Homo sapiens"){
             STRING$linknextprot = as.matrix(idMappingUniprot("ID", "GENECARDS_ID", unique(STRING$UniprotID), "tab"))
@@ -1771,6 +1800,7 @@ server <- function(input, output, session) {
       STRING$annotation = NULL
       STRING$PDB = NULL
       shinyjs::hide(id = "geneZone")
+      shinyjs::hide(id = "NoInfoZone")
       shinyjs::hide(id = "PDBDIV")
       updateSelectInput(session, "PDBSelector_ID",
                         choices = "")
