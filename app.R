@@ -123,8 +123,10 @@ ui <- dashboardPagePlus(
       title = HTML("<i class='fa fa-circle'></i>  Node color settings"),
       
       colourInput("colNodes", "Node color", "orange",allowTransparent = TRUE ), 
+      
       selectizeInput("colo","Enrichment coloration", choices = "None", 
                      selected = "None", multiple = FALSE), 
+      
       selectizeInput("coloL2",NULL, choices = NULL, 
                      selected = NULL, multiple = FALSE),
       
@@ -144,6 +146,7 @@ ui <- dashboardPagePlus(
     dropdownBlock(
       id = "networkDropdown_nodesShape",
       title = HTML("<i class='fa fa-circle'></i>  Node shape settings"),
+      
       numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
                    max=50),
       selectizeInput("shapeAnnotation_select","Change shape by annotation", choices = "None", 
@@ -298,7 +301,7 @@ ui <- dashboardPagePlus(
                            selectizeInput("colNodeSize", "Select column(s) to define the size of the nodes as a function of abundance", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T),
-
+                           
                            selectizeInput("collogFC", "Select column(s) to colorate by logFC", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T), 
@@ -310,7 +313,7 @@ ui <- dashboardPagePlus(
                            selectizeInput("shapeAnnotation", "Select column(s) to change the node shape according to an annotation", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) , 
-
+                           
                            selectizeInput("colAnnotationReport", "Select annotation column(s) to add in protein/gene report", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T)
@@ -471,6 +474,50 @@ ui <- dashboardPagePlus(
               DTOutput('DT_Interaction')
       ),
       
+      tabItem("settings",
+              h1("Setting section"), 
+              helpText("Section pour paramétrer les seuils et les couleurs pour les QS et les logFCs", style = "text-align: justify;"),
+              
+              h2("Threshold and colour of the logFCs"),
+              tags$b("Superior"),
+              numericInput(inputId = "TS_logFC1", NULL ,value = 2),
+              colourInput("Col_logFC1", NULL, value = "#ff0000", allowTransparent = TRUE ), 
+              
+              tags$b("Between superior and middle (up)"),
+              numericInput(inputId = "TS_logFC2", NULL ,value = 1),
+              colourInput("Col_logFC2", NULL, value = "#cc0000", allowTransparent = TRUE ), 
+              
+              tags$b("Middle"),
+              colourInput("Col_logFC_Middle", NULL, value = "#000000", allowTransparent = TRUE ),
+              
+              tags$b("Between inferior and middle (down)"),
+              numericInput(inputId = "TS_logFC3", NULL ,value = -1),
+              colourInput("Col_logFC3", NULL, value = "#009900", allowTransparent = TRUE ),
+              
+              tags$b("Inferior"),
+              numericInput(inputId = "TS_logFC4", NULL ,value = -2),
+              colourInput("Col_logFC4", NULL, value = "#66ff66", allowTransparent = TRUE ),
+              
+              actionBttn("resetlogFC",label = 'Reset', icon = icon("broom")), 
+              
+              h2("Threshold and colour of the P-value"), 
+              colourInput("Col_PV1", NULL, value = "#FFFFFF", allowTransparent = TRUE ), 
+              tags$b(">"),
+              numericInput(inputId = "TS_PV1", NULL ,value = 0.05),
+              tags$b(">="),
+              colourInput("Col_PV2", NULL, value = "#FFC9C9", allowTransparent = TRUE ), 
+              tags$b(">"),
+              numericInput(inputId = "TS_PV2", NULL ,value = 0.01),
+              tags$b(">="),
+              colourInput("Col_PV3", NULL, value = "#FF7A7A", allowTransparent = TRUE ),
+              tags$b(">"),
+              numericInput(inputId = "TS_PV3", NULL ,value = 0.001),
+              tags$b(">="),
+              colourInput("Col_PV4", NULL, value = "#FF0000", allowTransparent = TRUE ),
+              actionBttn("resetPV",label = 'Reset', icon = icon("broom"))
+              
+      ),
+      
       tabItem("about",
               h1("Session Information"), 
               helpText("In this section is gathered all the information concerning 
@@ -579,6 +626,7 @@ server <- function(input, output, session) {
                      menuItem("Graph", tabName = "graph", icon = icon("project-diagram") ),
                      menuItem("Enrichments", tabName = "enrichissement", icon = icon("search")),
                      menuItem("Raw data", tabName = "rawdata", icon = icon("file")),
+                     menuItem("Settings", tabName = "settings", icon = icon("wrench")),
                      menuItem("About", tabName = "about", icon = icon("cubes")),
                      menuItem("References", tabName = "ref", icon = icon("book"))
         )
@@ -622,6 +670,7 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "shapeAnnotation")
       shinyjs::hide(id = "colAnnotationReport")
       reset("file")
+      STRING$df = NULL
       updateNumericInput(session, "limitsNodes", value = 1)
     }
   })
@@ -801,7 +850,21 @@ server <- function(input, output, session) {
       shinyalert("Oops!", "If you do not want to search for a link in STRING, 
                  you must fill in columns for a co-expression search. Otherwise, change the limit to a minimum of 1", type = "error")
       
-    } else {
+    } else if(length(input$colCoExpression) != 0  && ! all(apply(STRING$df[,input$colCoExpression], 2, function(x) is.numeric(x)))){
+      shinyalert("Oops!", "Selected columns to calculate co-expressin are not numeric. Maybe try to change the decimal separator.", 
+                 type = "error")
+      
+    } else if(length(input$collogFC) != 0  && ! all(apply(STRING$df[,input$collogFC], 2, function(x) is.numeric(x)))){
+      shinyalert("Oops!", "Selected columns to colorate by logFC are not numeric. Maybe try to change the decimal separator.", 
+                 type = "error")
+      
+    } 
+    # else if(length(input$colQS) != 0  && ! all(apply(STRING$df[,input$colQS], 2, function(x) is.numeric(x)))){
+    #   shinyalert("Oops!", "Selected columns to colorate by QS are not numeric. Maybe try to change the decimal separator.", 
+    #              type = "error")
+    # 
+    # } 
+    else {
       m = 8
       rvEnvent$clean = F
       STRING$lien = NULL
@@ -930,7 +993,7 @@ server <- function(input, output, session) {
                               selected = "None"
             )
           }
-
+          
         }
         
         if(length(STRING$initProt) > 500){
@@ -1229,7 +1292,7 @@ server <- function(input, output, session) {
       updateSelectInput(session, "coloAnnot", selected = "None")
       updateSelectInput(session, "coloQS", selected = "None")
       updateSelectInput(session, "colologFC", selected = "None")
-
+      
       inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
       inter = unlist(strsplit(as.character(inter), ","))
       STRING$nodes$color = "grey"
@@ -1293,31 +1356,133 @@ server <- function(input, output, session) {
       
       STRING$nodes$color = "#808080"
       
-      interList = inter[which(inter[, input$colologFC] >= 2), input$protColumn]
+      interList = inter[which(inter[, input$colologFC] >= input$TS_logFC1), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#ff0000" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC1 
       
-      interList = inter[which(inter[, input$colologFC] < 2 & inter[, input$colologFC] >= 1), input$protColumn]
+      interList = inter[which(inter[, input$colologFC] < input$TS_logFC1 & inter[, input$colologFC] >= input$TS_logFC2), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#cc0000" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC2
       
-      interList = inter[which(inter[, input$colologFC] < 1 & inter[, input$colologFC] > -1 ), input$protColumn]
+      interList = inter[which(inter[, input$colologFC] < input$TS_logFC2 & inter[, input$colologFC] > input$TS_logFC3 ), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#000000" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC_Middle
       
-      interList = inter[which(inter[, input$colologFC] <= -1  & inter[, input$colologFC] > -2), input$protColumn]
+      interList = inter[which(inter[, input$colologFC] <= input$TS_logFC3  & inter[, input$colologFC] > input$TS_logFC4), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#009900" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC3 
       
-      interList = inter[which(inter[, input$colologFC] <= -2), input$protColumn]
+      interList = inter[which(inter[, input$colologFC] <= input$TS_logFC4), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#66ff66" 
-
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC4 
+      
     } else {
       if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
         STRING$nodes$color = input$colNodes
       }
     }
+  })
+  
+  
+  #=============================================================================
+  # Change Color of logFC
+  #=============================================================================
+  observeEvent({
+    input$TS_logFC1
+    input$TS_logFC2
+    input$TS_logFC3
+    input$TS_logFC4
+    input$Col_logFC_Middle
+    input$Col_logFC1
+    input$Col_logFC2
+    input$Col_logFC3
+    input$Col_logFC4
+  },{
+    if(input$colologFC != "" && input$colologFC != "None" ){
+      inter = STRING$importFile
+      inter[, input$colologFC] = as.numeric(as.character(inter[, input$colologFC]))
+      
+      STRING$nodes$color = "#808080"
+      
+      interList = inter[which(inter[, input$colologFC] >= input$TS_logFC1), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC1 
+      
+      interList = inter[which(inter[, input$colologFC] < input$TS_logFC1 & inter[, input$colologFC] >= input$TS_logFC2), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC2
+      
+      interList = inter[which(inter[, input$colologFC] < input$TS_logFC2 & inter[, input$colologFC] > input$TS_logFC3 ), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC_Middle
+      
+      interList = inter[which(inter[, input$colologFC] <= input$TS_logFC3  & inter[, input$colologFC] > input$TS_logFC4), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC3 
+      
+      interList = inter[which(inter[, input$colologFC] <= input$TS_logFC4), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_logFC4 
+    }
+  })
+  
+  observeEvent(input$resetlogFC , {     
+    updateColourInput(session, "Col_logFC1", value = "#ff0000")
+    updateColourInput(session, "Col_logFC2", value = "#cc0000")
+    updateColourInput(session, "Col_logFC_Middle", value = "#000000")
+    updateColourInput(session, "Col_logFC3", value = "#009900")
+    updateColourInput(session, "Col_logFC4", value = "#66ff66")
+    updateNumericInput(session, "TS_logFC1", value = 2)
+    updateNumericInput(session, "TS_logFC2", value = 1)
+    updateNumericInput(session, "TS_logFC3", value = -1)
+    updateNumericInput(session, "TS_logFC4", value = -2)
+  })
+  
+  #=============================================================================
+  # Change Color of Pvalues
+  #=============================================================================
+  
+  observeEvent({
+    input$Col_PV1
+    input$Col_PV2
+    input$Col_PV3
+    input$Col_PV4
+    input$TS_PV1
+    input$TS_PV2
+    input$TS_PV3
+  },{
+    if(input$coloQS != "" && input$coloQS != "None"){
+      inter = STRING$importFile
+      inter[, input$coloQS] = as.numeric(as.character(inter[, input$coloQS]))
+      
+      STRING$nodes$color = "#808080"
+      
+      interList = inter[which(inter[, input$coloQS] > input$TS_PV1), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV1 
+      
+      interList = inter[which(inter[, input$coloQS] <= input$TS_PV1 & inter[, input$coloQS] > input$TS_PV2 ), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV2
+      
+      interList = inter[which(inter[, input$coloQS] <= input$TS_PV2 & inter[, input$coloQS] > input$TS_PV3), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV3 
+      
+      interList = inter[which(inter[, input$coloQS] < input$TS_PV3), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV4 
+    }
+  })
+  
+  observeEvent(input$resetPV , { 
+    updateColourInput(session, "Col_PV1", value = "#FFFFFF")
+    updateColourInput(session, "Col_PV2", value = "#FFC9C9")
+    updateColourInput(session, "Col_PV3", value = "#FF7A7A")
+    updateColourInput(session, "Col_PV4", value = "#FF0000")
+    updateNumericInput(session, "TS_PV1", value = 0.05)
+    updateNumericInput(session, "TS_PV1", value = 0.01)
+    updateNumericInput(session, "TS_PV1", value = 0.001)
   })
   
   observeEvent(input$coloQS, {
@@ -1333,22 +1498,21 @@ server <- function(input, output, session) {
       
       STRING$nodes$color = "#808080"
       
-      interList = inter[which(inter[, input$coloQS] > 0.05), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] > input$TS_PV1), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFFFFF" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV1 
       
-      interList = inter[which(inter[, input$coloQS] <= 0.05 & inter[, input$coloQS] > 0.01 ), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] <= input$TS_PV1 & inter[, input$coloQS] > input$TS_PV2 ), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FFA07A" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV2
       
-      interList = inter[which(inter[, input$coloQS] <= 0.01 & inter[, input$coloQS] > 0.001), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] <= input$TS_PV2 & inter[, input$coloQS] > input$TS_PV3), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#FF0000" 
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV3 
       
-      interList = inter[which(inter[, input$coloQS] < 0.001), input$protColumn]
+      interList = inter[which(inter[, input$coloQS] < input$TS_PV3), input$protColumn]
       interList = STRING$associationProtGenes[interList]
-      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#8B0000" 
-      
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = input$Col_PV4 
       
     } else {
       if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
@@ -1938,7 +2102,7 @@ server <- function(input, output, session) {
           STRING$recommendedName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//fullName"))
           STRING$shortName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//shortName"))
           STRING$alternativeName =  paste0(xml_text(xml_find_all(xml_find_all(x, '//alternativeName'), ".//fullName")), collapse = ", ")
-         
+          
           geneAttribute = xml_attrs(xml_find_all(xml_find_all(x, '//gene'), ".//name"))
           geneAttribute = lapply(geneAttribute, function(i){
             i["type"]
@@ -1960,9 +2124,9 @@ server <- function(input, output, session) {
           }
           
           STRING$Feature = cbind.data.frame(Type = as.factor(xml_attr(interFeature, "type")), 
-                                          Description = as.factor(xml_attr(interFeature, "description")),
-                                          Position = as.factor(allPos)) 
-       
+                                            Description = as.factor(xml_attr(interFeature, "description")),
+                                            Position = as.factor(allPos)) 
+          
           STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
           STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
           
