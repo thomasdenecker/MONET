@@ -350,17 +350,21 @@ ui <- dashboardPagePlus(
                              h3("Node information"), 
                              helpText("Click on node to have information"),
                              div(id= "geneZone",
-                                 HTML('<p class="infoGene">General information</p>'),
+                                 HTML('<p class="infoGene">General information from STRING</p>'),
                                  htmlOutput("selected_var_gene"), 
                                  htmlOutput("selected_var_description"),
                                  htmlOutput("selected_var_species"),
-                                 htmlOutput("selected_var_sequence"),
-                                 htmlOutput("selected_var_sequenceAnnot"),
-                                 htmlOutput("selected_var_interFunctionUniprot"),
-                                 htmlOutput("selected_var_interLocalisationUniprot"),
+                                 HTML('<p class="infoGene">General information from Uniprot</p>'),
                                  htmlOutput("selected_var_recommendedName"),
                                  htmlOutput("selected_var_shortName"),
                                  htmlOutput("selected_var_alternativeName"), 
+                                 htmlOutput("selected_var_interFunctionUniprot"),
+                                 htmlOutput("selected_var_interLocalisationUniprot"),
+                                 htmlOutput("selected_var_geneName"),
+                                 htmlOutput("selected_var_sequence"),
+                                 htmlOutput("selected_var_sequenceAnnot"),
+                                 htmlOutput("Feature_title"), 
+                                 DTOutput("Feature"),
                                  tags$br(),
                                  HTML('<p class="infoGene">Link external databases</p>'),
                                  htmlOutput("selected_var_refseq", style="display: inline-block;"),
@@ -1424,27 +1428,31 @@ server <- function(input, output, session) {
   })
   
   output$selected_var_sequenceAnnot <- renderText({ 
-    HTML(paste("<b>Sequence annotation</b>", STRING$sequenceAnnot))
+    HTML(paste("<b>Sequence annotation</b> :", STRING$sequenceAnnot))
   })
   
   output$selected_var_interFunctionUniprot <- renderText({ 
-    HTML(paste("<b>Function (Uniprot)</b>", STRING$interFunctionUniprot))
+    HTML(paste("<b>Function</b> :", STRING$interFunctionUniprot))
   })
   
   output$selected_var_interLocalisationUniprot <- renderText({ 
-    HTML(paste("<b>Localisation (Uniprot)</b>", STRING$interLocalisationUniprot))
+    HTML(paste("<b>Localisation</b> :", STRING$interLocalisationUniprot))
   })
   
   output$selected_var_recommendedName <- renderText({ 
-    HTML(paste("<b>Recommended name (Uniprot)</b>", STRING$recommendedName))
+    HTML(paste("<b>Recommended name</b> :", STRING$recommendedName))
   })
   
   output$selected_var_shortName <- renderText({ 
-    HTML(paste("<b>Short name (Uniprot)</b>", STRING$shortName))
+    HTML(paste("<b>Short name</b> :", STRING$shortName))
   })
   
   output$selected_var_alternativeName <- renderText({ 
-    HTML(paste("<b>Alternative name (Uniprot)</b>", STRING$alternativeName))
+    HTML(paste("<b>Alternative name</b> :", STRING$alternativeName))
+  })
+  
+  output$selected_var_geneName <- renderText({ 
+    HTML(STRING$geneName)
   })
   
   #=============================================================================
@@ -1658,10 +1666,13 @@ server <- function(input, output, session) {
     STRING$recommendedName = NULL
     STRING$shortName= NULL
     STRING$alternativeName = NULL
+    STRING$geneName = NULL
     
     #---------------------------------------------------------------------------
     # Show step 
     #---------------------------------------------------------------------------
+    shinyjs::show(id = "Feature") 
+    shinyjs::show(id = "Feature_title") 
     shinyjs::show(id = "FA_InterPro_title") 
     shinyjs::show(id = "FA_InterPro") 
     shinyjs::show(id = "FA_Keyword_title") 
@@ -1799,18 +1810,44 @@ server <- function(input, output, session) {
           STRING$sequence = sequence
           STRING$sequenceAnnot = paste("<p style ='font-family: monospace;'>",sequenceAnnot, "</p>")
           
+          #-------------------------------
           # Extract sup info from uniprot
+          #-------------------------------
           x = read_xml(paste0("https://www.uniprot.org/uniprot/",STRING$UniprotID,".xml"))
           xml_ns_strip(x)
           interComment = xml_find_all(x, '//comment')
           STRING$interFunctionUniprot = xml_text(interComment[which(xml_attr(interComment, "type") == "function")])
           STRING$interLocalisationUniprot = paste0(xml_text(xml_find_all(interComment[which(xml_attr(interComment, "type") == "subcellular location")],".//location")), collapse = ", ")
           
+          # Name
           STRING$recommendedName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//fullName"))
           STRING$shortName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//shortName"))
           STRING$alternativeName =  paste0(xml_text(xml_find_all(xml_find_all(x, '//alternativeName'), ".//fullName")), collapse = ", ")
           
-
+         
+          geneAttribute = xml_attrs(xml_find_all(xml_find_all(x, '//gene'), ".//name"))
+          geneAttribute = lapply(geneAttribute, function(i){
+            i["type"]
+          })
+          
+          STRING$geneName =paste(paste0("<b>Gene name (",geneAttribute, ")</b> :", xml_text(xml_find_all(xml_find_all(x, '//gene'), ".//name"))), collapse = "<br>")
+          
+          # Features
+          interFeature = xml_find_all(x, '//feature')
+          
+          allPos = NULL
+          for( i in xml_find_all(interFeature, './/location')){
+            pos = xml_attr(xml_find_all(i, './/position'), "position")
+            if(length(pos) == 0){
+              pos = paste(xml_attr(xml_find_all(i, './/begin'), "position"),
+                          xml_attr(xml_find_all(i, './/end'), "position"), sep =  "<->")
+            }
+            allPos = c(allPos, pos)
+          }
+          
+          STRING$Feature = cbind.data.frame(Type = as.factor(xml_attr(interFeature, "type")), 
+                                          Description = as.factor(xml_attr(interFeature, "description")),
+                                          Position = as.factor(allPos)) 
        
           STRING$linkKEGG = as.matrix(idMappingUniprot("ID", "KEGG_ID", unique(STRING$UniprotID), "tab"))
           STRING$refseq = as.matrix(idMappingUniprot("ID", "P_REFSEQ_AC", unique(STRING$UniprotID), "tab"))
@@ -1883,6 +1920,27 @@ server <- function(input, output, session) {
   output$PDB_title <- renderText({ 
     if(!is.null(STRING$PDB) && length(STRING$PDB) != 0){
       HTML('<p class="infoGene">PDB</p>') 
+    } else {
+      NULL
+    }
+  })
+  
+  
+  #Feature
+  output$Feature = renderDT({
+    if(!is.null(STRING$Feature) && nrow(STRING$Feature) != 0){
+      STRING$Feature
+    } else {
+      shinyjs::hide(id = "FA_component")
+      NULL
+    }
+  }, filter = 'top',  selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+  )
+  
+  output$Feature_title <- renderText({ 
+    if(!is.null(STRING$Feature) && nrow(STRING$Feature) != 0){
+      HTML('<p class="infoGene">Features</p>') 
     } else {
       NULL
     }
