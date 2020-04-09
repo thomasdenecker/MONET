@@ -119,10 +119,9 @@ ui <- dashboardPagePlus(
     ),
     
     dropdownBlock(
-      id = "networkDropdown_nodes",
-      title = HTML("<i class='fa fa-circle'></i>  Node settings"),
-      numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
-                   max=50),
+      id = "networkDropdown_nodesColor",
+      title = HTML("<i class='fa fa-circle'></i>  Node color settings"),
+      
       colourInput("colNodes", "Node color", "orange",allowTransparent = TRUE ), 
       selectizeInput("colo","Enrichment coloration", choices = "None", 
                      selected = "None", multiple = FALSE), 
@@ -132,10 +131,22 @@ ui <- dashboardPagePlus(
       selectizeInput("coloAnnot","Annotation coloration", choices = "None", 
                      selected = "None", multiple = FALSE),
       
+      selectizeInput("colologFC","logFC coloration", choices = "None", 
+                     selected = "None", multiple = FALSE),
+      
       selectizeInput("coloQS","Quality score coloration", choices = "None", 
                      selected = "None", multiple = FALSE),
       
       selectizeInput("sizeBycolumn","Size by column", choices = "None", 
+                     selected = "None", multiple = FALSE)
+    ),
+    
+    dropdownBlock(
+      id = "networkDropdown_nodesShape",
+      title = HTML("<i class='fa fa-circle'></i>  Node shape settings"),
+      numericInput(inputId = "sizeNodes", label = "Node size",value = 20,min = 1,
+                   max=50),
+      selectizeInput("shapeAnnotation_select","Change shape by annotation", choices = "None", 
                      selected = "None", multiple = FALSE)
     ),
     
@@ -173,11 +184,13 @@ ui <- dashboardPagePlus(
     tags$head(tags$style(type = "text/css", "
                          canvas{height:100% !important; width:100% !important;background-color: rgba(255, 255, 255,0) !important}
                          #networkDropdown_edges .label { display : none;}
-                         #networkDropdown_nodes .label { display : none;}
+                         #networkDropdown_nodesColor .label { display : none;}
+                         #networkDropdown_nodesShape .label { display : none;}
                          #networkDropdown_network .label { display : none;}
                          
                          #networkDropdown_edges .menu { padding-inline-start:0px;}
-                         #networkDropdown_nodes .menu { padding-inline-start:0px;}
+                         #networkDropdown_nodesColor .menu { padding-inline-start:0px;}
+                         #networkDropdown_nodesShape .menu { padding-inline-start:0px;}
                          #networkDropdown_network .menu { padding-inline-start:0px;}
                          ")),
     tags$head(HTML('<link rel="stylesheet" type="text/css"
@@ -285,18 +298,22 @@ ui <- dashboardPagePlus(
                            selectizeInput("colNodeSize", "Select column(s) to define the size of the nodes as a function of abundance", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T),
+
+                           selectizeInput("collogFC", "Select column(s) to colorate by logFC", 
+                                          width = "100%", choices = NULL,  
+                                          selected = NULL, multiple = T), 
                            
                            selectizeInput("colQS", "Select column(s) to colorate by quality score values", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) ,
                            
-                           selectizeInput("colAnnotation", "Select column(s) to color according to an annotation", 
+                           selectizeInput("shapeAnnotation", "Select column(s) to change the node shape according to an annotation", 
                                           width = "100%", choices = NULL,  
                                           selected = NULL, multiple = T) , 
-                           
+
                            selectizeInput("colAnnotationReport", "Select annotation column(s) to add in protein/gene report", 
                                           width = "100%", choices = NULL,  
-                                          selected = NULL, multiple = T)  
+                                          selected = NULL, multiple = T)
                            
                     )
                   )
@@ -599,8 +616,10 @@ server <- function(input, output, session) {
       shinyjs::hide(id = "protColumn")
       shinyjs::hide(id = "protList")
       shinyjs::hide(id = "colNodeSize")
+      shinyjs::hide(id = "collogFC")
       shinyjs::hide(id = "colQS")
       shinyjs::hide(id = "colAnnotation")
+      shinyjs::hide(id = "shapeAnnotation")
       shinyjs::hide(id = "colAnnotationReport")
       reset("file")
       updateNumericInput(session, "limitsNodes", value = 1)
@@ -635,7 +654,9 @@ server <- function(input, output, session) {
     shinyjs::show(id = "protColumn")
     shinyjs::show(id = "colNodeSize")
     shinyjs::show(id = "colQS")
+    shinyjs::show(id = "collogFC")
     shinyjs::show(id = "colAnnotation")
+    shinyjs::show(id = "shapeAnnotation")
     shinyjs::show(id = "colAnnotationReport")
     updateSelectizeInput(session, "colCoExpression", 
                          selected = "" )
@@ -650,6 +671,9 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colCoExpression", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
+    updateSelectizeInput(session, "collogFC", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
     updateSelectizeInput(session, "colQS", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
@@ -657,6 +681,9 @@ server <- function(input, output, session) {
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
     updateSelectizeInput(session, "colAnnotation", 
+                         choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
+    
+    updateSelectizeInput(session, "shapeAnnotation", 
                          choices =  setNames(colnames(STRING$df) , colnames(STRING$df)))
     
     updateSelectizeInput(session, "colAnnotationReport", 
@@ -673,10 +700,16 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "colQS", 
                          choices = inter )
     
+    updateSelectizeInput(session, "collogFC", 
+                         choices = inter )
+    
     updateSelectizeInput(session, "colNodeSize", 
                          choices = inter )
     
     updateSelectizeInput(session, "colAnnotation", 
+                         choices = inter )
+    
+    updateSelectizeInput(session, "shapeAnnotation", 
                          choices = inter )
     
   })
@@ -860,6 +893,16 @@ server <- function(input, output, session) {
             )
           }
           
+          if(! is.null(input$shapeAnnotation) && length(input$shapeAnnotation) != 0){
+            updateSelectInput(session, "shapeAnnotation_select",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(input$shapeAnnotation), 
+                                                   as.character(input$shapeAnnotation))) ,
+                              selected = "None"
+            )
+          }
+          
+          
           
           if(! is.null(input$colNodeSize) && length(input$colNodeSize) != 0){
             updateSelectInput(session, "sizeBycolumn",
@@ -879,7 +922,15 @@ server <- function(input, output, session) {
             )
           }
           
-          
+          if(! is.null(input$collogFC) && length(input$collogFC) != 0){
+            updateSelectInput(session, "colologFC",
+                              choices = c("None" = "None", 
+                                          setNames(as.character(input$collogFC), 
+                                                   as.character(input$collogFC))) ,
+                              selected = "None"
+            )
+          }
+
         }
         
         if(length(STRING$initProt) > 500){
@@ -1177,15 +1228,35 @@ server <- function(input, output, session) {
     if(input$coloL2 != "" && input$coloL2 != "None"){
       updateSelectInput(session, "coloAnnot", selected = "None")
       updateSelectInput(session, "coloQS", selected = "None")
-      
+      updateSelectInput(session, "colologFC", selected = "None")
+
       inter = STRING$dataEnrichissement %>% filter(description == input$coloL2) %>% pull(preferredNames)
       inter = unlist(strsplit(as.character(inter), ","))
       STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
         STRING$nodes$color = input$colNodes
       } 
+    }
+  })
+  
+  observeEvent(input$shapeAnnotation_select, {
+    if(input$shapeAnnotation_select != "" && input$shapeAnnotation_select != "None" ){
+      inter = STRING$importFile
+      inter[, input$shapeAnnotation_select] = as.logical(inter[, input$shapeAnnotation_select])
+      inter = inter[which(inter[, input$shapeAnnotation_select]), input$protColumn]
+      inter = STRING$associationProtGenes[inter]
+      
+      STRING$nodes$shape = "dot"
+      STRING$nodes$shape[STRING$nodes$id %in% STRING$associationProtGenes[STRING$initProt] ] = "square" 
+      STRING$nodes$shape[STRING$nodes$id %in% inter ] = "star" 
+      STRING$nodes$size =  20
+      STRING$nodes$size[STRING$nodes$id %in% inter ] =  40
+    } else {
+      STRING$nodes$shape = "dot"
+      STRING$nodes$shape[STRING$nodes$id %in% STRING$associationProtGenes[STRING$initProt] ] = "square" 
+      STRING$nodes$size = input$sizeNodes
     }
   })
   
@@ -1194,6 +1265,7 @@ server <- function(input, output, session) {
       updateSelectInput(session, "coloL2", selected = "None")
       updateSelectInput(session, "colo", selected = "None")
       updateSelectInput(session, "coloQS", selected = "None")
+      updateSelectInput(session, "colologFC", selected = "None")
       
       inter = STRING$importFile
       inter[, input$coloAnnot] = as.logical(inter[, input$coloAnnot])
@@ -1202,7 +1274,47 @@ server <- function(input, output, session) {
       STRING$nodes$color = "grey"
       STRING$nodes$color[STRING$nodes$id %in% inter ] = "red" 
     } else {
-      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
+        STRING$nodes$color = input$colNodes
+      }
+    }
+  })
+  
+  observeEvent(input$colologFC, {
+    if(input$colologFC != "" && input$colologFC != "None" ){
+      
+      updateSelectInput(session, "coloL2", selected = "None")
+      updateSelectInput(session, "colo", selected = "None")
+      updateSelectInput(session, "coloAnnot", selected = "None")
+      updateSelectInput(session, "coloQS", selected = "None") 
+      
+      inter = STRING$importFile
+      inter[, input$colologFC] = as.numeric(as.character(inter[, input$colologFC]))
+      
+      STRING$nodes$color = "#808080"
+      
+      interList = inter[which(inter[, input$colologFC] >= 2), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#ff0000" 
+      
+      interList = inter[which(inter[, input$colologFC] < 2 & inter[, input$colologFC] >= 1), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#cc0000" 
+      
+      interList = inter[which(inter[, input$colologFC] < 1 & inter[, input$colologFC] > -1 ), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#000000" 
+      
+      interList = inter[which(inter[, input$colologFC] <= -1  & inter[, input$colologFC] > -2), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#009900" 
+      
+      interList = inter[which(inter[, input$colologFC] <= -2), input$protColumn]
+      interList = STRING$associationProtGenes[interList]
+      STRING$nodes$color[STRING$nodes$id %in% interList ] = "#66ff66" 
+
+    } else {
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
         STRING$nodes$color = input$colNodes
       }
     }
@@ -1214,6 +1326,7 @@ server <- function(input, output, session) {
       updateSelectInput(session, "coloL2", selected = "None")
       updateSelectInput(session, "colo", selected = "None")
       updateSelectInput(session, "coloAnnot", selected = "None")
+      updateSelectInput(session, "colologFC", selected = "None") 
       
       inter = STRING$importFile
       inter[, input$coloQS] = as.numeric(as.character(inter[, input$coloQS]))
@@ -1238,7 +1351,7 @@ server <- function(input, output, session) {
       
       
     } else {
-      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None"){
+      if(input$coloAnnot == "None" && input$coloL2 == "None" && input$colo == "None" && input$coloQS == "None" && input$colologFC == "None"){
         STRING$nodes$color = input$colNodes
       }
     }
@@ -1249,6 +1362,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "coloL2", selected = "None")
     updateSelectInput(session, "coloAnnot", selected = "None")
     updateSelectInput(session, "coloQS", selected = "None")
+    updateSelectInput(session, "colologFC", selected = "None")
     STRING$nodes$color = input$colNodes
   }
   ) 
