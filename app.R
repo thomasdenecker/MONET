@@ -1667,6 +1667,7 @@ server <- function(input, output, session) {
     STRING$shortName= NULL
     STRING$alternativeName = NULL
     STRING$geneName = NULL
+    STRING$Feature = NULL
     
     #---------------------------------------------------------------------------
     # Show step 
@@ -1823,14 +1824,13 @@ server <- function(input, output, session) {
           STRING$recommendedName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//fullName"))
           STRING$shortName =  xml_text(xml_find_all(xml_find_all(x, '//recommendedName'), ".//shortName"))
           STRING$alternativeName =  paste0(xml_text(xml_find_all(xml_find_all(x, '//alternativeName'), ".//fullName")), collapse = ", ")
-          
          
           geneAttribute = xml_attrs(xml_find_all(xml_find_all(x, '//gene'), ".//name"))
           geneAttribute = lapply(geneAttribute, function(i){
             i["type"]
           })
           
-          STRING$geneName =paste(paste0("<b>Gene name (",geneAttribute, ")</b> :", xml_text(xml_find_all(xml_find_all(x, '//gene'), ".//name"))), collapse = "<br>")
+          STRING$geneName =paste(paste0("<b>Gene name (",geneAttribute, ")</b> : ", xml_text(xml_find_all(xml_find_all(x, '//gene'), ".//name"))), collapse = "<br>")
           
           # Features
           interFeature = xml_find_all(x, '//feature')
@@ -1931,7 +1931,7 @@ server <- function(input, output, session) {
     if(!is.null(STRING$Feature) && nrow(STRING$Feature) != 0){
       STRING$Feature
     } else {
-      shinyjs::hide(id = "FA_component")
+      shinyjs::hide(id = "Feature")
       NULL
     }
   }, filter = 'top',  selection = 'none', escape = FALSE,
@@ -2513,7 +2513,14 @@ server <- function(input, output, session) {
                      species = unique(STRING$dataInfoAll$taxonName[STRING$dataInfoAll$preferredName == input$network_selected]),
                      network = STRING$network,
                      sequence = STRING$sequence,
-                     sequenceAnnot = STRING$sequenceAnnot
+                     sequenceAnnot = STRING$sequenceAnnot,
+                     FunctionUniprot = STRING$interFunctionUniprot,
+                     LocalisationUniprot= STRING$interLocalisationUniprot,
+                     recommendedName = STRING$recommendedName,
+                     shortName = STRING$shortName,
+                     alternativeName = STRING$alternativeName,
+                     geneName = STRING$geneName,
+                     Feature = STRING$Feature
       )
       rmarkdown::render("report.Rmd", output_file = file,
                         params = params,

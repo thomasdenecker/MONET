@@ -12,6 +12,13 @@ params:
   network : NA
   sequence : NA
   sequenceAnnot : NA
+  FunctionUniprot : NA
+  LocalisationUniprot : NA
+  recommendedName  : NA
+  shortName : NA
+  alternativeName : NA
+  geneName : NA
+  Feature : NA
 
 output:
   html_document:
@@ -23,7 +30,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# General information
+# General information from STRING
 
 #### Gene name
 `r params$gene`
@@ -34,13 +41,47 @@ knitr::opts_chunk$set(echo = TRUE)
 #### Species 
 `r params$species`
 
+# General information from Uniprot
+
+#### Function
+`r params$FunctionUniprot`
+
+#### Localisation
+`r params$LocalisationUniprot`
+
+#### Recommended name
+`r params$recommendedName`
+
+#### Short name
+`r params$shortName`
+
+#### Alternative name 
+`r params$alternativeName`
+
+#### Gene name 
+`r params$geneName`
+
 #### Sequence 
 `r params$sequence`
 
 #### Sequence annotation
 `r params$sequenceAnnot`
 
-#### Graph 
+#### Feature
+
+```{r echo = F}
+datatable({
+  if(!is.null(params$Feature) && nrow(params$Feature) != 0){
+      params$Feature
+    } else {
+      NULL
+    }
+  }, filter = 'top',  selection = 'none', escape = FALSE,
+  options = list(pageLength = 5, scrollX = TRUE)
+)
+```
+
+# Graph 
 ```{r echo = F}
 params$network
 ```
