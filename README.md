@@ -87,18 +87,16 @@ A dataset is available [here]('') . You can use it to see the file architecture 
 
 ## Development
 
-### Launch in debug mode
+### Debug
 
-During development, you will probably need to get all messages (errors, warnings and notifications) in the R terminal. The following command launches the application and generates a log file in the application folder. To find the path to the application, you can look in the launch file.
+During development or if server crashes (gray screen), you will probably need to get all messages (errors, warnings and notifications) in the R terminal.All these outputs are recorded in a log file saved in log folder. The most recent file corresponds to your session. 
 
-```
-docker run -ti --rm -p 3838:3838 -v YOUR_APPLICATION_PATH:/var/log/shiny-server -v YOUR_APPLICATION_PATH:/srv/shiny-server tdenecker/monet
-```
+Does the problem persist? Post an [Issues](https://github.com/thomasdenecker/MONET/issues) and we will try to find a solution!
 
 ### Connect to a R session
 
 ```
-docker run -ti --rm -p 3838:3838 -v YOUR_APPLICATION_PATH:/srv/shiny-server  tdenecker/monet
+docker run -ti --rm -p 3838:3838 -v YOUR_APPLICATION_PATH:/srv/shiny-server  tdenecker/monet R
 ```
 
 **Warning**: nothing is saved in this session (package installation, ...)
@@ -106,7 +104,8 @@ docker run -ti --rm -p 3838:3838 -v YOUR_APPLICATION_PATH:/srv/shiny-server  tde
 
 ## Citation
 If you use MONET project, please cite us :
-Denecker et al, MONET - Multi-Omics NETworks, (2020), GitHub repository, https://github.com/thomasdenecker/MONET
+
+Denecker *et al*, **MONET - Multi-Omics NETworks**, (2020), GitHub repository, https://github.com/thomasdenecker/MONET
 
 
 ## Contributing
