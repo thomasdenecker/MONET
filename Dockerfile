@@ -55,5 +55,15 @@ RUN Rscript -e "install.packages('shinyhelper', repos='https://cran.rstudio.com/
 RUN Rscript -e "install.packages('seqinr', repos='https://cran.rstudio.com/', dependencies = TRUE)" \
     && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
 
+RUN Rscript -e "install.packages('rvest', repos='https://cran.rstudio.com/', dependencies = TRUE)" \
+    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
+
+RUN apt-get update  
+RUN apt-get install -y default-jdk
+RUN apt-get install -y r-cran-rjava
+RUN R CMD javareconf
+
+RUN Rscript -e "install.packages(c('rJava', 'xlsx'), repos='https://cran.rstudio.com/', dependencies = TRUE)" \
+    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
 
 COPY shiny-server.conf /etc/shiny-server/
